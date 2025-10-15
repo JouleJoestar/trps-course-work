@@ -34,7 +34,6 @@ private:
     QPushButton *sendButton;
 
     QString m_userLogin;
-    qint64 m_currentUserId;
     NetworkManager *m_networkManager;
     Database *m_db;
 };
