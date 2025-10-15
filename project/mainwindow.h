@@ -3,11 +3,11 @@
 
 #include <QMainWindow>
 
-QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
-QT_END_NAMESPACE
+// Forward declarations
+class QListWidget;
+class QTextEdit;
+class QLineEdit;
+class QPushButton;
 
 class MainWindow : public QMainWindow
 {
@@ -16,8 +16,19 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    void setUserLogin(const QString& login);
+
+private slots:
+    void onSendButtonClicked();
 
 private:
-    Ui::MainWindow *ui;
+    void setupUi(); // Метод для создания интерфейса
+
+    QListWidget *chatListWidget;
+    QTextEdit *messageHistoryView;
+    QLineEdit *messageInput;
+    QPushButton *sendButton;
+
+    QString m_userLogin;
 };
 #endif // MAINWINDOW_H
