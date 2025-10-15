@@ -8,6 +8,7 @@ class QTextEdit;
 class QLineEdit;
 class QPushButton;
 class NetworkManager;
+class Database;
 
 class MainWindow : public QMainWindow
 {
@@ -22,6 +23,7 @@ private slots:
     void onSendButtonClicked();
     void updateUserList(const QStringList &users);
     void onMessageReceived(const QString &senderLogin, const QString &message);
+    void onChatSelectionChanged();
 
 private:
     void setupUi();
@@ -32,6 +34,8 @@ private:
     QPushButton *sendButton;
 
     QString m_userLogin;
+    qint64 m_currentUserId;
     NetworkManager *m_networkManager;
+    Database *m_db;
 };
 #endif // MAINWINDOW_H

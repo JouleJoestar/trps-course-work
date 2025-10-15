@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "networkmanager.h"
-
+#include "database.h"
 #include <QWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -13,9 +13,12 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_networkManager(nullptr) // Инициализируем указатель как null
+    , m_db(nullptr) // <--- ДОБАВЛЕНО: инициализация
+    , m_currentUserId(-1) // <--- ДОБАВЛЕНО: инициализация
 {
     setupUi();
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
+    connect(chatListWidget, &QListWidget::currentItemChanged, this, &MainWindow::onChatSelectionChanged);
 }
 
 MainWindow::~MainWindow()
@@ -59,6 +62,7 @@ void MainWindow::setupUi()
     mainLayout->setStretch(1, 4); // Правая панель будет в 4 раза шире левой
 
     setCentralWidget(centralWidget);
+    connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked);
 }
 
 void MainWindow::setUserLogin(const QString &login)
@@ -66,10 +70,20 @@ void MainWindow::setUserLogin(const QString &login)
     m_userLogin = login;
     setWindowTitle("Мессенджер - " + m_userLogin);
 
-    // Создаем NetworkManager ПОСЛЕ того, как получили имя пользователя
+    // Создаем и подключаем БД
+    m_db = new Database(this);
+    m_db->connect();
+
+    // Получаем и сохраняем ID текущего пользователя
+    m_currentUserId = m_db->getUserId(m_userLogin);
+    if (m_currentUserId == -1) {
+        qWarning() << "Could not retrieve current user ID from database!";
+        // Здесь можно добавить обработку критической ошибки
+    }
+
+    // Создаем NetworkManager
     m_networkManager = new NetworkManager(m_userLogin, this);
 
-    // Соединяем сигналы от NetworkManager со слотами для обновления UI
     connect(m_networkManager, &NetworkManager::userListUpdated, this, &MainWindow::updateUserList);
     connect(m_networkManager, &NetworkManager::messageReceived, this, &MainWindow::onMessageReceived);
 }
@@ -95,6 +109,11 @@ void MainWindow::onSendButtonClicked()
         messageInput->clear();
         messageInput->setFocus();
         return;
+    }
+
+    qint64 receiverId = m_db->getUserId(receiverLogin);
+    if (receiverId != -1) {
+        m_db->addMessage(m_currentUserId, receiverId, message);
     }
 
     // Отправляем сообщение через NetworkManager
@@ -134,7 +153,40 @@ void MainWindow::updateUserList(const QStringList &users)
 
 void MainWindow::onMessageReceived(const QString &senderLogin, const QString &message)
 {
-    // В будущем здесь будет проверка, активен ли чат с этим пользователем
-    // А пока что просто выводим сообщение в текущее окно
-    messageHistoryView->append(senderLogin + ": " + message);
+    // --- ЛОГИКА СОХРАНЕНИЯ В БД ---
+    qint64 senderId = m_db->getUserId(senderLogin);
+    if (senderId != -1) {
+        m_db->addMessage(senderId, m_currentUserId, message);
+    }
+    // ----------------------------
+
+    // Отображаем сообщение, только если сейчас открыт чат с этим отправителем
+    if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == senderLogin) {
+        messageHistoryView->append(senderLogin + ": " + message);
+    }
+}
+
+// --- НОВЫЙ СЛОТ ---
+void MainWindow::onChatSelectionChanged()
+{
+    QListWidgetItem *currentItem = chatListWidget->currentItem();
+    messageHistoryView->clear(); // Очищаем окно при смене чата
+
+    if (!currentItem) return;
+
+    QString selectedUser = currentItem->text();
+    if (selectedUser == "Общий чат") {
+        // Логика для общего чата
+        return;
+    }
+
+    // --- ЛОГИКА ЗАГРУЗКИ ИЗ БД ---
+    qint64 selectedUserId = m_db->getUserId(selectedUser);
+    if (selectedUserId != -1) {
+        QList<QPair<QString, QString>> history = m_db->getMessages(m_currentUserId, selectedUserId);
+        for (const auto &messagePair : history) {
+            messageHistoryView->append(messagePair.first + ": " + messagePair.second);
+        }
+    }
+    // ----------------------------
 }
