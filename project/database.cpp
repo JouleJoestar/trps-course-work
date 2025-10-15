@@ -15,8 +15,6 @@ Database::~Database()
 bool Database::initDb()
 {
     QSqlQuery query;
-
-    // Включаем поддержку внешних ключей для SQLite
     if (db.driver()->hasFeature(QSqlDriver::Transactions)) {
         db.transaction();
     }
@@ -29,8 +27,6 @@ bool Database::initDb()
         }
     }
 
-
-    // Таблица пользователей
     if (!query.exec("CREATE TABLE IF NOT EXISTS users ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     "login TEXT UNIQUE NOT NULL,"
@@ -42,7 +38,6 @@ bool Database::initDb()
         return false;
     }
 
-    // Таблица сообщений
     if (!query.exec("CREATE TABLE IF NOT EXISTS messages ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     "sender_id INTEGER NOT NULL,"
@@ -56,7 +51,6 @@ bool Database::initDb()
         return false;
     }
 
-    // Таблица контактов
     if (!query.exec("CREATE TABLE IF NOT EXISTS contacts ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     "owner_id INTEGER NOT NULL,"
@@ -83,7 +77,6 @@ bool Database::connect()
         return false;
     }
 
-    // Вызываем инициализацию таблиц при подключении
     return initDb();
 }
 
@@ -100,7 +93,7 @@ bool Database::userExists(const QString &login)
 bool Database::addUser(const QString &login, const QString &passwordHash, const QString &publicKey, const QString &encryptedPrivateKey)
 {
     if (userExists(login)) {
-        return false; // Пользователь уже существует
+        return false;
     }
 
     QSqlQuery query;
@@ -118,7 +111,6 @@ bool Database::addUser(const QString &login, const QString &passwordHash, const 
     return true;
 }
 
-// Обновленный метод checkCredentials
 bool Database::checkCredentials(const QString &login, const QString &passwordHash)
 {
     QSqlQuery query;

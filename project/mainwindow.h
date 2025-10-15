@@ -3,11 +3,11 @@
 
 #include <QMainWindow>
 
-// Forward declarations
 class QListWidget;
 class QTextEdit;
 class QLineEdit;
 class QPushButton;
+class NetworkManager;
 
 class MainWindow : public QMainWindow
 {
@@ -20,9 +20,10 @@ public:
 
 private slots:
     void onSendButtonClicked();
+    void updateUserList(const QStringList &users);
 
 private:
-    void setupUi(); // Метод для создания интерфейса
+    void setupUi();
 
     QListWidget *chatListWidget;
     QTextEdit *messageHistoryView;
@@ -30,5 +31,6 @@ private:
     QPushButton *sendButton;
 
     QString m_userLogin;
+    NetworkManager *m_networkManager;
 };
 #endif // MAINWINDOW_H

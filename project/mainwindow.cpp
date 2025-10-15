@@ -1,5 +1,5 @@
-    #include "mainwindow.h"
-
+#include "mainwindow.h"
+#include "networkmanager.h"
 #include <QWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -9,13 +9,9 @@
 #include <QPushButton>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
+    : QMainWindow(parent) , m_networkManager(nullptr)
 {
     setupUi();
-
-    chatListWidget->addItem("Общий чат");
-    chatListWidget->addItem("Алиса");
-    chatListWidget->addItem("Боб");
 
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
 }
@@ -59,11 +55,14 @@ void MainWindow::setupUi()
     setCentralWidget(centralWidget);
 }
 
-
 void MainWindow::setUserLogin(const QString &login)
 {
     m_userLogin = login;
     setWindowTitle("Мессенджер - " + m_userLogin);
+
+    m_networkManager = new NetworkManager(m_userLogin, this);
+
+    connect(m_networkManager, &NetworkManager::userListUpdated, this, &MainWindow::updateUserList);
 }
 
 void MainWindow::onSendButtonClicked()
@@ -73,5 +72,17 @@ void MainWindow::onSendButtonClicked()
         messageHistoryView->append(m_userLogin + ": " + message);
         messageInput->clear();
         messageInput->setFocus(); // Возвращаем фокус на поле ввода
+    }
+}
+
+void MainWindow::updateUserList(const QStringList &users)
+{
+    chatListWidget->clear();
+    chatListWidget->addItem("Общий чат");
+
+    for (const QString &user : users) {
+        if (chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
+            chatListWidget->addItem(user);
+        }
     }
 }

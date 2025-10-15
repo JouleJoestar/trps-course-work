@@ -1,4 +1,4 @@
-QT       += core gui sql
+QT       += core gui sql network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -12,13 +12,15 @@ SOURCES += \
     authdialog.cpp \
     database.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    networkmanager.cpp
 
 HEADERS += \
     authdialog.h \
     cryptographymanager.h \
     database.h \
-    mainwindow.h
+    mainwindow.h \
+    networkmanager.h
 
 FORMS += \
     mainwindow.ui

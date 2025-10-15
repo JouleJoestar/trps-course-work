@@ -4,7 +4,6 @@
 #include <QDialog>
 #include "database.h"
 
-// Forward declarations
 class QLineEdit;
 class QPushButton;
 
@@ -22,7 +21,7 @@ private slots:
     void onRegisterClicked();
 
 private:
-    void setupUi(); // Метод для создания интерфейса
+    void setupUi();
 
     QLineEdit *loginLineEdit;
     QLineEdit *passwordLineEdit;
