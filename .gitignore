@@ -1,6 +1,33 @@
 # This file is used to ignore files which are generated
 # ----------------------------------------------------------------------------
+# Папки сборки Qt Creator
+build-*/
+*-build-*/
 
+# Файлы, генерируемые Qt Creator и пользователем
+*.user
+*.pro.user
+*.creator.user
+
+# Файлы базы данных SQLite
+*.db
+*.db-journal
+
+# Сгенерированные Makefile и объектные файлы
+Makefile*
+*.o
+*.obj
+
+# Исполняемые файлы и библиотеки
+*.exe
+*.dll
+*.app
+*.so
+
+# Сгенерированные moc, ui и rcc файлы
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
 *~
 *.autosave
 *.a
