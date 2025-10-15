@@ -12,9 +12,8 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , m_networkManager(nullptr) // Инициализируем указатель как null
-    , m_db(nullptr) // <--- ДОБАВЛЕНО: инициализация
-    , m_currentUserId(-1) // <--- ДОБАВЛЕНО: инициализация
+    , m_networkManager(nullptr)
+    , m_db(nullptr)
 {
     setupUi();
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
@@ -74,13 +73,6 @@ void MainWindow::setUserLogin(const QString &login)
     m_db = new Database(this);
     m_db->connect();
 
-    // Получаем и сохраняем ID текущего пользователя
-    m_currentUserId = m_db->getUserId(m_userLogin);
-    if (m_currentUserId == -1) {
-        qWarning() << "Could not retrieve current user ID from database!";
-        // Здесь можно добавить обработку критической ошибки
-    }
-
     // Создаем NetworkManager
     m_networkManager = new NetworkManager(m_userLogin, this);
 
@@ -91,35 +83,17 @@ void MainWindow::setUserLogin(const QString &login)
 void MainWindow::onSendButtonClicked()
 {
     QString message = messageInput->text().trimmed();
-    if (message.isEmpty()) {
-        return;
-    }
-
-    // Определяем, кому отправлять, по выбранному элементу в списке
+    if (message.isEmpty()) return;
     QListWidgetItem *currentItem = chatListWidget->currentItem();
-    if (!currentItem) {
-        return; // Никто не выбран, ничего не делаем
-    }
+    if (!currentItem) return;
     QString receiverLogin = currentItem->text();
+    if (receiverLogin == "Общий чат" || receiverLogin == m_userLogin) return;
 
-    // Если это "Общий чат" (пока не реализовано) или мы пытаемся отправить себе
-    if (receiverLogin == "Общий чат" || receiverLogin == m_userLogin) {
-        // Просто выводим сообщение у себя и ничего не отправляем
-        messageHistoryView->append(m_userLogin + ": " + message);
-        messageInput->clear();
-        messageInput->setFocus();
-        return;
-    }
+    // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
+    m_db->addMessage(m_userLogin, receiverLogin, message);
 
-    qint64 receiverId = m_db->getUserId(receiverLogin);
-    if (receiverId != -1) {
-        m_db->addMessage(m_currentUserId, receiverId, message);
-    }
-
-    // Отправляем сообщение через NetworkManager
     m_networkManager->sendMessage(receiverLogin, message);
 
-    // Отображаем наше отправленное сообщение в окне чата
     messageHistoryView->append(m_userLogin + ": " + message);
     messageInput->clear();
     messageInput->setFocus();
@@ -127,40 +101,44 @@ void MainWindow::onSendButtonClicked()
 
 void MainWindow::updateUserList(const QStringList &users)
 {
-    // Запоминаем, кто был выбран
+    // Блокируем сигналы от chatListWidget на время его обновления,
+    // чтобы onChatSelectionChanged не вызывался хаотично.
+    chatListWidget->blockSignals(true);
+
     QString selectedUser;
     if (chatListWidget->currentItem()) {
         selectedUser = chatListWidget->currentItem()->text();
     }
 
     chatListWidget->clear();
-    chatListWidget->addItem("Общий чат"); // Всегда добавляем "Общий чат"
+    chatListWidget->addItem("Общий чат");
 
-    // Добавляем обнаруженных пользователей
     for (const QString &user : users) {
-        // Проверка, чтобы не добавлять самого себя в список
         if (user != m_userLogin) {
             chatListWidget->addItem(user);
         }
     }
 
-    // Пытаемся восстановить выбор
     QList<QListWidgetItem*> items = chatListWidget->findItems(selectedUser, Qt::MatchExactly);
     if (!items.isEmpty()) {
         chatListWidget->setCurrentItem(items.first());
+    }
+
+    // Разблокируем сигналы
+    chatListWidget->blockSignals(false);
+
+    // Если после обновления выбор не изменился, а окно пустое,
+    // нужно принудительно перезагрузить историю.
+    if (chatListWidget->currentItem() && messageHistoryView->toPlainText().isEmpty()) {
+        onChatSelectionChanged();
     }
 }
 
 void MainWindow::onMessageReceived(const QString &senderLogin, const QString &message)
 {
-    // --- ЛОГИКА СОХРАНЕНИЯ В БД ---
-    qint64 senderId = m_db->getUserId(senderLogin);
-    if (senderId != -1) {
-        m_db->addMessage(senderId, m_currentUserId, message);
-    }
-    // ----------------------------
+    // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
+    m_db->addMessage(senderLogin, m_userLogin, message);
 
-    // Отображаем сообщение, только если сейчас открыт чат с этим отправителем
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == senderLogin) {
         messageHistoryView->append(senderLogin + ": " + message);
     }
@@ -170,23 +148,15 @@ void MainWindow::onMessageReceived(const QString &senderLogin, const QString &me
 void MainWindow::onChatSelectionChanged()
 {
     QListWidgetItem *currentItem = chatListWidget->currentItem();
-    messageHistoryView->clear(); // Очищаем окно при смене чата
-
-    if (!currentItem) return;
-
-    QString selectedUser = currentItem->text();
-    if (selectedUser == "Общий чат") {
-        // Логика для общего чата
+    messageHistoryView->clear();
+    if (!currentItem || currentItem->text() == "Общий чат") {
         return;
     }
+    QString selectedUser = currentItem->text();
 
-    // --- ЛОГИКА ЗАГРУЗКИ ИЗ БД ---
-    qint64 selectedUserId = m_db->getUserId(selectedUser);
-    if (selectedUserId != -1) {
-        QList<QPair<QString, QString>> history = m_db->getMessages(m_currentUserId, selectedUserId);
-        for (const auto &messagePair : history) {
-            messageHistoryView->append(messagePair.first + ": " + messagePair.second);
-        }
+    // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
+    QList<QPair<QString, QString>> history = m_db->getMessages(m_userLogin, selectedUser);
+    for (const auto &messagePair : history) {
+        messageHistoryView->append(messagePair.first + ": " + messagePair.second);
     }
-    // ----------------------------
 }
