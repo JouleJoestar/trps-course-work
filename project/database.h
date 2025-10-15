@@ -13,12 +13,10 @@ public:
 
     bool connect();
     bool userExists(const QString &login);
-    // ИЗМЕНЕНО: Сигнатура функции обновлена
     bool addUser(const QString &login, const QString &passwordHash, const QString &publicKey, const QString &encryptedPrivateKey);
     bool checkCredentials(const QString &login, const QString &passwordHash);
 
 private:
-    // ДОБАВЛЕНО: Объявление функции initDb()
     bool initDb();
     QSqlDatabase db;
 };

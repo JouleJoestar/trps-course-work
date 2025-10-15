@@ -1,6 +1,4 @@
 #include "authdialog.h"
-
-// ДОБАВЛЕНО: Полные определения для виджетов, используемых в .cpp
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>

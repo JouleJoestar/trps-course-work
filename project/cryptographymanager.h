@@ -3,16 +3,14 @@
 
 #include <QString>
 #include <QPair>
-#include <QDateTime> // ДОБАВЛЕНО: Необходимый инклюд
+#include <QDateTime>
 
 class CryptographyManager
 {
 public:
-    // Возвращает пару: <Публичный ключ, Зашифрованный приватный ключ>
     static QPair<QString, QString> generateKeys(const QString& password)
     {
         // ЗАГЛУШКА: В будущем здесь будет реальная генерация ключей ГОСТ.
-        // Сейчас просто генерируем псевдо-ключи для демонстрации.
         QString loginBasedSalt = QString::number(QDateTime::currentMSecsSinceEpoch());
         QString publicKey = "-----BEGIN PUBLIC KEY-----\n" + loginBasedSalt + "\n-----END PUBLIC KEY-----";
 
