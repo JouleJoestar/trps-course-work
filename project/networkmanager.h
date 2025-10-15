@@ -5,9 +5,11 @@
 #include <QHostAddress>
 #include <QMap>
 
-// Предварительные объявления, чтобы не подключать тяжелые заголовки здесь
+// Предварительные объявления для классов Qt, чтобы не делать тяжелых #include
 class QUdpSocket;
 class QTimer;
+class QTcpServer;
+class QTcpSocket;
 
 class NetworkManager : public QObject
 {
@@ -15,21 +17,39 @@ class NetworkManager : public QObject
 public:
     explicit NetworkManager(const QString &currentUserLogin, QObject *parent = nullptr);
 
+    // --> ДОБАВЬТЕ ЭТУ СТРОКУ
+    // Объявляет публичный метод для отправки сообщений, который вызывается из MainWindow
+    void sendMessage(const QString &receiverLogin, const QString &message);
+
 signals:
-    // Сигнал, который отправляет обновленный список имен пользователей в главное окно
     void userListUpdated(const QStringList &users);
 
+    // --> ДОБАВЬТЕ ЭТУ СТРОКУ
+    // Объявляет сигнал, который будет отправляться при получении нового сообщения
+    void messageReceived(const QString &senderLogin, const QString &message);
+
 private slots:
-    void sendBroadcast(); // Слот для отправки "приветствия" по таймеру
-    void processPendingDatagrams(); // Слот для обработки полученных "приветствий"
+    // Слоты для внутренней работы класса
+    void sendBroadcast();
+    void processPendingDatagrams();
+
+    // --> ДОБАВЬТЕ ЭТУ СТРОКУ
+    // Слот для обработки новых TCP-подключений
+    void onNewTcpConnection();
 
 private:
     QString m_currentUserLogin;
+
+    // Объекты для работы с сетью
     QUdpSocket *udpSocket;
     QTimer *broadcastTimer;
-    // Храним карту "имя пользователя -> его IP адрес"
+    QTcpServer *tcpServer; // <-- Убедитесь, что этот указатель объявлен
+
     QMap<QString, QHostAddress> m_discoveredUsers;
-    static const quint16 broadcastPort = 45454; // Выбираем порт для общения
+
+    // Константы для портов
+    static const quint16 broadcastPort = 45454;
+    static const quint16 tcpPort = 45455; // <-- Убедитесь, что эта константа объявлена
 };
 
 #endif // NETWORKMANAGER_H
