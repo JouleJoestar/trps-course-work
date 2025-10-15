@@ -21,6 +21,7 @@ public:
 private slots:
     void onSendButtonClicked();
     void updateUserList(const QStringList &users);
+    void onMessageReceived(const QString &senderLogin, const QString &message);
 
 private:
     void setupUi();
