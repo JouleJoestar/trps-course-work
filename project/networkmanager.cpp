@@ -11,10 +11,8 @@
 NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
     : QObject(parent), m_currentUserLogin(currentUserLogin)
 {
-    // --- UDP ЧАСТЬ ---
     udpSocket = new QUdpSocket(this);
 
-    // Слушаем (bind) на всех интерфейсах (AnyIPv4). Это надежно.
     if (!udpSocket->bind(QHostAddress::AnyIPv4, broadcastPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
         qWarning() << "UDP Socket could not bind:" << udpSocket->errorString();
     } else {
@@ -25,11 +23,10 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
 
     broadcastTimer = new QTimer(this);
     connect(broadcastTimer, &QTimer::timeout, this, &NetworkManager::sendBroadcast);
-    broadcastTimer->start(5000); // <-- ЭТА СТРОКА БЫЛА ПРОПУЩЕНА
+    broadcastTimer->start(5000);
     sendBroadcast();
     // ----------------------
 
-    // --- TCP ЧАСТЬ ---
     tcpServer = new QTcpServer(this);
     if (!tcpServer->listen(QHostAddress::Any, tcpPort)) {
         qWarning() << "TCP Server could not start on port" << tcpPort;
@@ -94,7 +91,7 @@ void NetworkManager::onNewTcpConnection()
 void NetworkManager::sendBroadcast()
 {
     QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8();
-    qDebug() << "Sending broadcast:" << datagram; // Можно раскомментировать для отладки
+    qDebug() << "Sending broadcast:" << datagram;
     udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
 }
 
@@ -105,24 +102,41 @@ void NetworkManager::processPendingDatagrams()
         QByteArray data = datagram.data();
         QHostAddress senderAddress = datagram.senderAddress();
 
-        // Раскомментируйте для подробной отладки сети
-        // qDebug() << "Received datagram from" << senderAddress.toString() << "with data:" << data;
+        qDebug() << "[RAW] Received datagram from" << senderAddress.toString() << "with data:" << data;
 
         if (data.startsWith("DISCOVER:")) {
             QString discoveredUserLogin = QString::fromUtf8(data.mid(9));
             if (discoveredUserLogin == m_currentUserLogin)
                 continue;
 
-            // IPv4-адрес может прийти в формате "::ffff:192.168.1.5", нужно его очистить
-            if (senderAddress.protocol() == QAbstractSocket::IPv4Protocol) {
-                senderAddress = QHostAddress(senderAddress.toIPv4Address());
+            // --- НАЧАЛО НОВОЙ ЛОГИКИ ---
+            qDebug() << "[DEBUG] Processing packet from user:" << discoveredUserLogin;
+
+            // Жестко приводим адрес к IPv4, чтобы гарантировать одинаковый формат
+            QHostAddress cleanAddress(senderAddress.toIPv4Address());
+
+            qDebug() << "[DEBUG] Original address:" << senderAddress.toString() << "| Cleaned address:" << cleanAddress.toString();
+
+            // Проверяем, есть ли такой пользователь в нашем списке
+            if (m_discoveredUsers.contains(discoveredUserLogin)) {
+                // Если есть, сравниваем адреса
+                if (m_discoveredUsers.value(discoveredUserLogin) == cleanAddress) {
+                    // Адрес совпадает, ничего не делаем.
+                    // qDebug() << "[DEBUG] Address for" << discoveredUserLogin << "is unchanged. Skipping.";
+                    continue;
+                } else {
+                    qDebug() << "[DEBUG] Address for" << discoveredUserLogin << "has CHANGED from" << m_discoveredUsers.value(discoveredUserLogin).toString() << "to" << cleanAddress.toString();
+                }
+            } else {
+                qDebug() << "[DEBUG] Discovered NEW user:" << discoveredUserLogin;
             }
 
-            if (!m_discoveredUsers.contains(discoveredUserLogin) || m_discoveredUsers.value(discoveredUserLogin) != senderAddress) {
-                qDebug() << "Discovered/updated user:" << discoveredUserLogin << "at" << senderAddress.toString();
-                m_discoveredUsers[discoveredUserLogin] = senderAddress;
-                emit userListUpdated(m_discoveredUsers.keys());
-            }
+            // Добавляем или обновляем пользователя
+            m_discoveredUsers[discoveredUserLogin] = cleanAddress;
+
+            qDebug() << "[ACTION] Emitting userListUpdated with users:" << m_discoveredUsers.keys();
+            emit userListUpdated(m_discoveredUsers.keys());
+            // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
         }
     }
 }
