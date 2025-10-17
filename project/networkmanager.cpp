@@ -89,7 +89,17 @@ void NetworkManager::onNewTcpConnection()
 void NetworkManager::sendBroadcast()
 {
     QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8() + ":" + m_publicKey.toUtf8();
-    udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
+    qDebug() << "Attempting to send broadcast to all interfaces";
+
+    for (const QNetworkInterface &interface : QNetworkInterface::allInterfaces()) {
+        if ((interface.flags() & QNetworkInterface::IsUp) && (interface.flags() & QNetworkInterface::CanBroadcast)) {
+            for (const QNetworkAddressEntry &entry : interface.addressEntries()) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                    udpSocket->writeDatagram(datagram, entry.broadcast(), broadcastPort);
+                }
+            }
+        }
+    }
 }
 
 void NetworkManager::processPendingDatagrams()
