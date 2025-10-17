@@ -22,7 +22,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    // Qt автоматически удалит дочерние объекты, включая m_networkManager
 }
 
 void MainWindow::setupUi()
@@ -30,7 +29,6 @@ void MainWindow::setupUi()
     setWindowTitle("Мессенджер");
     resize(800, 600);
 
-    // Центральный виджет и главный компоновщик
     QWidget *centralWidget = new QWidget(this);
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
 
@@ -58,7 +56,7 @@ void MainWindow::setupUi()
     // Собираем главный компоновщик
     mainLayout->addWidget(chatListWidget);
     mainLayout->addLayout(chatLayout);
-    mainLayout->setStretch(1, 4); // Правая панель будет в 4 раза шире левой
+    mainLayout->setStretch(1, 4);
 
     setCentralWidget(centralWidget);
     connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked);
@@ -69,11 +67,9 @@ void MainWindow::setUserLogin(const QString &login)
     m_userLogin = login;
     setWindowTitle("Мессенджер - " + m_userLogin);
 
-    // Создаем и подключаем БД
     m_db = new Database(this);
     m_db->connect();
 
-    // Создаем NetworkManager
     m_networkManager = new NetworkManager(m_userLogin, this);
 
     connect(m_networkManager, &NetworkManager::userListUpdated, this, &MainWindow::updateUserList);
@@ -101,8 +97,6 @@ void MainWindow::onSendButtonClicked()
 
 void MainWindow::updateUserList(const QStringList &users)
 {
-    // Блокируем сигналы от chatListWidget на время его обновления,
-    // чтобы onChatSelectionChanged не вызывался хаотично.
     chatListWidget->blockSignals(true);
 
     QString selectedUser;
@@ -124,11 +118,8 @@ void MainWindow::updateUserList(const QStringList &users)
         chatListWidget->setCurrentItem(items.first());
     }
 
-    // Разблокируем сигналы
     chatListWidget->blockSignals(false);
 
-    // Если после обновления выбор не изменился, а окно пустое,
-    // нужно принудительно перезагрузить историю.
     if (chatListWidget->currentItem() && messageHistoryView->toPlainText().isEmpty()) {
         onChatSelectionChanged();
     }
@@ -136,7 +127,6 @@ void MainWindow::updateUserList(const QStringList &users)
 
 void MainWindow::onMessageReceived(const QString &senderLogin, const QString &message)
 {
-    // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
     m_db->addMessage(senderLogin, m_userLogin, message);
 
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == senderLogin) {
