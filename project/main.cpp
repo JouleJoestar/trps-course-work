@@ -2,11 +2,14 @@
 #include "authdialog.h"
 #include "database.h"
 #include <QApplication>
+#include "cryptographymanager.h"
 #include <QMessageBox>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+    CryptographyManager::init();
 
     Database db;
     if (!db.connect()) {

@@ -92,15 +92,31 @@ void AuthDialog::onRegisterClicked()
         return;
     }
 
-    auto keys = CryptographyManager::generateKeys(password);
-    QString publicKey = keys.first;
-    QString encryptedPrivateKey = keys.second;
+    // 1. Генерируем ключевую пару ГОСТ в виде объекта OpenSSL
+    auto pkey = CryptographyManager::generateGostKeys();
+    if (!pkey) {
+        QMessageBox::critical(this, "Ошибка", "Не удалось сгенерировать ключевую пару.");
+        return;
+    }
 
+    // 2. Преобразуем публичный ключ в текст (PEM)
+    QByteArray publicKeyPem = CryptographyManager::pkeyToPem(pkey.get(), false);
+
+    // 3. Шифруем приватный ключ паролем и преобразуем в текст (PEM)
+    QByteArray privateKeyEncryptedPem = CryptographyManager::encryptPrivateKey(pkey.get(), password);
+
+    if (publicKeyPem.isEmpty() || privateKeyEncryptedPem.isEmpty()) {
+        QMessageBox::critical(this, "Ошибка", "Не удалось преобразовать или зашифровать ключи.");
+        return;
+    }
+
+    // 4. Хешируем пароль для хранения в БД
     QString passwordHash = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
 
-    if (m_db->addUser(login, passwordHash, publicKey, encryptedPrivateKey)) {
+    // 5. Сохраняем все в базу данных
+    if (m_db->addUser(login, passwordHash, QString::fromUtf8(publicKeyPem), QString::fromUtf8(privateKeyEncryptedPem))) {
         QMessageBox::information(this, "Успех", "Регистрация прошла успешно. Теперь вы можете войти.");
     } else {
-        QMessageBox::warning(this, "Ошибка регистрации", "Не удалось зарегистрировать пользователя. Попробуйте еще раз.");
+        QMessageBox::warning(this, "Ошибка регистрации", "Не удалось добавить пользователя в базу данных.");
     }
 }

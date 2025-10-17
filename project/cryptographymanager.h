@@ -3,23 +3,23 @@
 
 #include <QString>
 #include <QPair>
-#include <QDateTime>
+#include <QByteArray>
+#include <openssl/evp.h>
+#include <openssl/bio.h>
+#include <memory>
 
-class CryptographyManager
-{
+class CryptographyManager {
 public:
-    static QPair<QString, QString> generateKeys(const QString& password)
-    {
-        // ЗАГЛУШКА: В будущем здесь будет реальная генерация ключей ГОСТ.
-        QString loginBasedSalt = QString::number(QDateTime::currentMSecsSinceEpoch());
-        QString publicKey = "-----BEGIN PUBLIC KEY-----\n" + loginBasedSalt + "\n-----END PUBLIC KEY-----";
+    using EVP_PKEY_ptr = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
+    using BIO_ptr = std::unique_ptr<BIO, decltype(&BIO_free)>;
+    using EVP_PKEY_CTX_ptr = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
 
-        // ЗАГЛУШКА: Имитируем шифрование приватного ключа паролем.
-        QString privateKey = "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + loginBasedSalt + "_private\n-----END ENCRYPTED PRIVATE KEY-----";
-        QString encryptedPrivateKey = "encrypted_with(" + password + ")::" + privateKey;
-
-        return qMakePair(publicKey, encryptedPrivateKey);
-    }
+    static void init();
+    static EVP_PKEY_ptr generateGostKeys();
+    static QByteArray pkeyToPem(EVP_PKEY* pkey, bool isPrivate);
+    static QByteArray encryptPrivateKey(EVP_PKEY* pkey, const QString& password);
+private:
+    static QString getOpenSSLError();
 };
 
-#endif // CRYPTOGRAPHYMANAGER_H
+#endif
