@@ -1,23 +1,31 @@
 #ifndef CRYPTOGRAPHYMANAGER_H
 #define CRYPTOGRAPHYMANAGER_H
 
-#include <QString>
 #include <QPair>
 #include <QByteArray>
+#include <QString> // <-- ДОБАВЛЕН ИНКЛЮД
 #include <openssl/evp.h>
 #include <openssl/bio.h>
 #include <memory>
 
 class CryptographyManager {
 public:
+    // Объявляем ВСЕ нужные псевдонимы
     using EVP_PKEY_ptr = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
     using BIO_ptr = std::unique_ptr<BIO, decltype(&BIO_free)>;
     using EVP_PKEY_CTX_ptr = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
+    using EVP_CIPHER_CTX_ptr = std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>; // <-- ДОБАВЛЕН НЕДОСТАЮЩИЙ using
 
-    static void init();
-    static EVP_PKEY_ptr generateGostKeys();
+    static EVP_PKEY_ptr generateRsaKeys();
     static QByteArray pkeyToPem(EVP_PKEY* pkey, bool isPrivate);
     static QByteArray encryptPrivateKey(EVP_PKEY* pkey, const QString& password);
+
+    // ИСПРАВЛЕНИЕ: Используем QString() для аргумента по умолчанию
+    static EVP_PKEY_ptr pemToPkey(const QByteArray& pem, bool isPrivate, const QString& password = QString());
+
+    static QByteArray hybridEncrypt(const QByteArray& data, EVP_PKEY* publicKey);
+    static QByteArray hybridDecrypt(const QByteArray& encryptedData, EVP_PKEY* privateKey);
+
 private:
     static QString getOpenSSLError();
 };

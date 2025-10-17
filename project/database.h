@@ -19,6 +19,9 @@ public:
     bool addMessage(const QString &senderLogin, const QString &receiverLogin, const QString &content);
     QList<QPair<QString, QString>> getMessages(const QString &user1Login, const QString &user2Login);
 
+    QString getPublicKey(const QString &login);
+    QString getEncryptedPrivateKey(const QString &login);
+
 private:
     bool initDb();
     QSqlDatabase db;

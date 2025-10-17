@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include "cryptographymanager.h" // <-- ВАЖНЫЙ ИНКЛЮД, исправляет ошибку с CryptographyManager
 
 class QListWidget;
 class QTextEdit;
@@ -17,12 +18,14 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(Database* db, QWidget *parent = nullptr);
     ~MainWindow();
-    void setUserLogin(const QString& login);
+    // ИЗМЕНЕНИЕ: Добавляем параметр password
+    void setUserLogin(const QString& login, const QString& password);
 
 private slots:
     void onSendButtonClicked();
     void updateUserList(const QStringList &users);
-    void onMessageReceived(const QString &senderLogin, const QString &message);
+    // ИЗМЕНЕНИЕ: Теперь принимаем QByteArray
+    void onMessageReceived(const QString &senderLogin, const QByteArray &encryptedMessage);
     void onChatSelectionChanged();
 
 private:
@@ -36,5 +39,8 @@ private:
     QString m_userLogin;
     NetworkManager *m_networkManager;
     Database *m_db;
+
+    // ИЗМЕНЕНИЕ: Добавляем поле для приватного ключа
+    CryptographyManager::EVP_PKEY_ptr m_privateKey;
 };
 #endif // MAINWINDOW_H

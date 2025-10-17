@@ -1,6 +1,8 @@
 #include "mainwindow.h"
 #include "networkmanager.h"
 #include "database.h"
+#include "cryptographymanager.h" // <-- Включаем наш крипто-менеджер
+
 #include <QWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -9,11 +11,14 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QListWidgetItem>
+#include <QMessageBox> // Для вывода ошибок
+#include <QDebug>
 
 MainWindow::MainWindow(Database* db, QWidget *parent)
     : QMainWindow(parent)
     , m_networkManager(nullptr)
     , m_db(db)
+    , m_privateKey(nullptr, &EVP_PKEY_free) // <-- ИСПРАВЛЕНИЕ: Явно инициализируем unique_ptr
 {
     setupUi();
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
@@ -32,16 +37,13 @@ void MainWindow::setupUi()
     QWidget *centralWidget = new QWidget(this);
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
 
-    // Левая панель (список чатов)
     chatListWidget = new QListWidget(this);
     chatListWidget->setMaximumWidth(200);
 
-    // Правая панель (окно чата)
     QVBoxLayout *chatLayout = new QVBoxLayout();
     messageHistoryView = new QTextEdit(this);
     messageHistoryView->setReadOnly(true);
 
-    // Нижняя часть (поле ввода и кнопка)
     QHBoxLayout *inputLayout = new QHBoxLayout();
     messageInput = new QLineEdit(this);
     messageInput->setPlaceholderText("Введите сообщение...");
@@ -53,7 +55,6 @@ void MainWindow::setupUi()
     chatLayout->addWidget(messageHistoryView);
     chatLayout->addLayout(inputLayout);
 
-    // Собираем главный компоновщик
     mainLayout->addWidget(chatListWidget);
     mainLayout->addLayout(chatLayout);
     mainLayout->setStretch(1, 4);
@@ -62,15 +63,31 @@ void MainWindow::setupUi()
     connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked);
 }
 
-void MainWindow::setUserLogin(const QString &login)
+void MainWindow::setUserLogin(const QString &login, const QString &password)
 {
     m_userLogin = login;
     setWindowTitle("Мессенджер - " + m_userLogin);
 
-    m_db = new Database(this);
-    m_db->connect();
+    // --- РАСШИФРОВКА ПРИВАТНОГО КЛЮЧА ПРИ ВХОДЕ ---
+    QString privateKeyPem = m_db->getEncryptedPrivateKey(m_userLogin);
+    if (privateKeyPem.isEmpty()) {
+        QMessageBox::critical(this, "Критическая ошибка", "Не удалось загрузить приватный ключ из базы данных.");
+        // В реальном приложении здесь лучше закрыть окно
+        return;
+    }
 
-    m_networkManager = new NetworkManager(m_userLogin, this);
+    m_privateKey = CryptographyManager::pemToPkey(privateKeyPem.toUtf8(), true, password);
+
+    if (!m_privateKey) {
+        QMessageBox::critical(this, "Критическая ошибка", "Не удалось расшифровать приватный ключ. Вероятно, введен неверный пароль или ключ поврежден.");
+        // В реальном приложении здесь лучше закрыть окно
+        return;
+    }
+    qDebug() << "Private key successfully decrypted and loaded for" << m_userLogin;
+    // ------------------------------------------
+
+    // Передаем наш публичный ключ в NetworkManager
+    m_networkManager = new NetworkManager(m_userLogin, m_db->getPublicKey(m_userLogin), this);
 
     connect(m_networkManager, &NetworkManager::userListUpdated, this, &MainWindow::updateUserList);
     connect(m_networkManager, &NetworkManager::messageReceived, this, &MainWindow::onMessageReceived);
@@ -78,63 +95,70 @@ void MainWindow::setUserLogin(const QString &login)
 
 void MainWindow::onSendButtonClicked()
 {
-    QString message = messageInput->text().trimmed();
-    if (message.isEmpty()) return;
+    QString messageText = messageInput->text().trimmed();
+    if (messageText.isEmpty()) return;
+
     QListWidgetItem *currentItem = chatListWidget->currentItem();
     if (!currentItem) return;
+
     QString receiverLogin = currentItem->text();
     if (receiverLogin == "Общий чат" || receiverLogin == m_userLogin) return;
 
-    // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
-    m_db->addMessage(m_userLogin, receiverLogin, message);
+    // --- ШАГ 1: Получаем публичный ключ получателя ---
+    QString publicKeyPem = m_networkManager->getPublicKeyForUser(receiverLogin);
+    if (publicKeyPem.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось найти публичный ключ для пользователя. Возможно, он оффлайн или еще не обнаружен.");
+        return;
+    }
+    auto publicKey = CryptographyManager::pemToPkey(publicKeyPem.toUtf8(), false);
+    if (!publicKey) {
+        QMessageBox::warning(this, "Ошибка", "Публичный ключ пользователя некорректен.");
+        return;
+    }
 
-    m_networkManager->sendMessage(receiverLogin, message);
+    // --- ШАГ 2: Шифруем сообщение ---
+    QByteArray encryptedMessage = CryptographyManager::hybridEncrypt(messageText.toUtf8(), publicKey.get());
+    if (encryptedMessage.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось зашифровать сообщение.");
+        return;
+    }
 
-    messageHistoryView->append(m_userLogin + ": " + message);
+    // --- ШАГ 3: Отправляем зашифрованные данные ---
+    m_networkManager->sendMessage(receiverLogin, encryptedMessage);
+
+    // --- ШАГ 4: Сохраняем в БД и отображаем ---
+    // Сохраняем оригинальный, незашифрованный текст для нашей локальной истории
+    m_db->addMessage(m_userLogin, receiverLogin, messageText);
+
+    messageHistoryView->append(m_userLogin + ": " + messageText);
     messageInput->clear();
     messageInput->setFocus();
 }
 
-void MainWindow::updateUserList(const QStringList &users)
+void MainWindow::onMessageReceived(const QString &senderLogin, const QByteArray &encryptedMessage)
 {
-    chatListWidget->blockSignals(true);
+    // --- ШАГ 1: Расшифровываем сообщение нашим приватным ключом ---
+    QByteArray decryptedMessage = CryptographyManager::hybridDecrypt(encryptedMessage, m_privateKey.get());
 
-    QString selectedUser;
-    if (chatListWidget->currentItem()) {
-        selectedUser = chatListWidget->currentItem()->text();
+    if (decryptedMessage.isEmpty()) {
+        qWarning() << "Failed to decrypt a message from" << senderLogin;
+        // Можно добавить уведомление в UI, что пришло поврежденное сообщение
+        return;
     }
+    QString messageText = QString::fromUtf8(decryptedMessage);
 
-    chatListWidget->clear();
-    chatListWidget->addItem("Общий чат");
+    // --- ШАГ 2: Сохраняем в БД и отображаем ---
+    m_db->addMessage(senderLogin, m_userLogin, messageText);
 
-    for (const QString &user : users) {
-        if (user != m_userLogin) {
-            chatListWidget->addItem(user);
-        }
-    }
-
-    QList<QListWidgetItem*> items = chatListWidget->findItems(selectedUser, Qt::MatchExactly);
-    if (!items.isEmpty()) {
-        chatListWidget->setCurrentItem(items.first());
-    }
-
-    chatListWidget->blockSignals(false);
-
-    if (chatListWidget->currentItem() && messageHistoryView->toPlainText().isEmpty()) {
-        onChatSelectionChanged();
-    }
-}
-
-void MainWindow::onMessageReceived(const QString &senderLogin, const QString &message)
-{
-    m_db->addMessage(senderLogin, m_userLogin, message);
-
+    // Отображаем сообщение, только если сейчас открыт чат с этим отправителем
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == senderLogin) {
-        messageHistoryView->append(senderLogin + ": " + message);
+        messageHistoryView->append(senderLogin + ": " + messageText);
+    } else {
+        // В будущем здесь можно добавить уведомление о новом сообщении
+        qDebug() << "Received a new message from" << senderLogin << "but chat is not active.";
     }
 }
 
-// --- НОВЫЙ СЛОТ ---
 void MainWindow::onChatSelectionChanged()
 {
     QListWidgetItem *currentItem = chatListWidget->currentItem();
@@ -144,9 +168,32 @@ void MainWindow::onChatSelectionChanged()
     }
     QString selectedUser = currentItem->text();
 
-    // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
     QList<QPair<QString, QString>> history = m_db->getMessages(m_userLogin, selectedUser);
     for (const auto &messagePair : history) {
         messageHistoryView->append(messagePair.first + ": " + messagePair.second);
+    }
+}
+
+void MainWindow::updateUserList(const QStringList &users)
+{
+    chatListWidget->blockSignals(true);
+    QString selectedUser;
+    if (chatListWidget->currentItem()) {
+        selectedUser = chatListWidget->currentItem()->text();
+    }
+    chatListWidget->clear();
+    chatListWidget->addItem("Общий чат");
+    for (const QString &user : users) {
+        if (user != m_userLogin) {
+            chatListWidget->addItem(user);
+        }
+    }
+    QList<QListWidgetItem*> items = chatListWidget->findItems(selectedUser, Qt::MatchExactly);
+    if (!items.isEmpty()) {
+        chatListWidget->setCurrentItem(items.first());
+    }
+    chatListWidget->blockSignals(false);
+    if (chatListWidget->currentItem() && messageHistoryView->toPlainText().isEmpty()) {
+        onChatSelectionChanged();
     }
 }

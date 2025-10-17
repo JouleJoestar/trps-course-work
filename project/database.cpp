@@ -169,3 +169,27 @@ QList<QPair<QString, QString>> Database::getMessages(const QString &user1Login, 
 
     return messages;
 }
+
+QString Database::getPublicKey(const QString &login)
+{
+    if (!db.isOpen()) return {};
+    QSqlQuery query;
+    query.prepare("SELECT public_key FROM users WHERE login = :login");
+    query.bindValue(":login", login);
+    if (query.exec() && query.next()) {
+        return query.value(0).toString();
+    }
+    return {};
+}
+
+QString Database::getEncryptedPrivateKey(const QString &login)
+{
+    if (!db.isOpen()) return {};
+    QSqlQuery query;
+    query.prepare("SELECT private_key_encrypted FROM users WHERE login = :login");
+    query.bindValue(":login", login);
+    if (query.exec() && query.next()) {
+        return query.value(0).toString();
+    }
+    return {};
+}

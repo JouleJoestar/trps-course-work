@@ -7,6 +7,7 @@
 #include <QMessageBox>
 #include <QCryptographicHash>
 #include "cryptographymanager.h"
+#include "database.h"
 
 AuthDialog::AuthDialog(Database* db, QWidget *parent) :
     QDialog(parent),
@@ -71,6 +72,7 @@ void AuthDialog::onLoginClicked()
 
     if (m_db->checkCredentials(login, passwordHash)) {
         m_login = login;
+        m_password = password;
         accept();
     } else {
         QMessageBox::warning(this, "Ошибка входа", "Неверный логин или пароль.");
@@ -92,17 +94,17 @@ void AuthDialog::onRegisterClicked()
         return;
     }
 
-    // 1. Генерируем ключевую пару ГОСТ в виде объекта OpenSSL
-    auto pkey = CryptographyManager::generateGostKeys();
+    // 1. Генерируем ключевую пару RSA
+    auto pkey = CryptographyManager::generateRsaKeys();
     if (!pkey) {
-        QMessageBox::critical(this, "Ошибка", "Не удалось сгенерировать ключевую пару.");
+        QMessageBox::critical(this, "Ошибка", "Не удалось сгенерировать ключевую пару RSA.");
         return;
     }
 
-    // 2. Преобразуем публичный ключ в текст (PEM)
+    // 2. Преобразуем публичный ключ в PEM
     QByteArray publicKeyPem = CryptographyManager::pkeyToPem(pkey.get(), false);
 
-    // 3. Шифруем приватный ключ паролем и преобразуем в текст (PEM)
+    // 3. Шифруем приватный ключ паролем (AES-256)
     QByteArray privateKeyEncryptedPem = CryptographyManager::encryptPrivateKey(pkey.get(), password);
 
     if (publicKeyPem.isEmpty() || privateKeyEncryptedPem.isEmpty()) {
@@ -119,4 +121,9 @@ void AuthDialog::onRegisterClicked()
     } else {
         QMessageBox::warning(this, "Ошибка регистрации", "Не удалось добавить пользователя в базу данных.");
     }
+}
+
+QString AuthDialog::getPassword() const
+{
+    return m_password;
 }

@@ -9,7 +9,6 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
 
-    CryptographyManager::init();
 
     Database db;
     if (!db.connect()) {
@@ -20,7 +19,7 @@ int main(int argc, char *argv[])
     AuthDialog authDialog(&db);
     if (authDialog.exec() == QDialog::Accepted) {
         MainWindow w(&db);
-        w.setUserLogin(authDialog.getLogin());
+        w.setUserLogin(authDialog.getLogin(), authDialog.getPassword());
         w.show();
         return a.exec();
     }

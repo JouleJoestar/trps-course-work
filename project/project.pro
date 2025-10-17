@@ -2,13 +2,18 @@ QT       += core gui sql network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-OPENSSL_PATH = C:/OpenSSL-1.1.1-Win32/
+# ===================================================================
+# Конфигурация для OpenSSL 1.1.1 (Indy Sockets MSVC 64-bit)
+# ===================================================================
 
-INCLUDEPATH += $$OPENSSL_PATH/include
+# Главная папка, куда вы все распаковали
+OPENSSL_DIR = C:/openssl-1.1/
 
-# ВАЖНО: Явно указываем полные имена .lib файлов
-LIBS += $$OPENSSL_PATH/lib/libcrypto.lib \
-        $$OPENSSL_PATH/lib/libssl.lib
+# Путь к папке include для 64-битной версии
+INCLUDEPATH += $$OPENSSL_DIR/x64/include
+
+# Путь к папке lib для 64-битной версии и сами библиотеки
+LIBS += -L$$quote($$OPENSSL_DIR/x64/lib) -llibcrypto -llibssl
 
 CONFIG += c++17
 
