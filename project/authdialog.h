@@ -12,7 +12,7 @@ class AuthDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit AuthDialog(QWidget *parent = nullptr);
+    explicit AuthDialog(Database* db, QWidget *parent = nullptr);
     ~AuthDialog();
     QString getLogin() const;
 
@@ -28,7 +28,7 @@ private:
     QPushButton *loginButton;
     QPushButton *registerButton;
 
-    Database *db;
+    Database *m_db;
     QString m_login;
 };
 

@@ -2,6 +2,14 @@ QT       += core gui sql network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
+OPENSSL_PATH = C:/OpenSSL-1.1.1-Win32/
+
+INCLUDEPATH += $$OPENSSL_PATH/include
+
+# ВАЖНО: Явно указываем полные имена .lib файлов
+LIBS += $$OPENSSL_PATH/lib/libcrypto.lib \
+        $$OPENSSL_PATH/lib/libssl.lib
+
 CONFIG += c++17
 
 # You can make your code fail to compile if it uses deprecated APIs.
@@ -10,6 +18,7 @@ CONFIG += c++17
 
 SOURCES += \
     authdialog.cpp \
+    cryptographymanager.cpp \
     database.cpp \
     main.cpp \
     mainwindow.cpp \
