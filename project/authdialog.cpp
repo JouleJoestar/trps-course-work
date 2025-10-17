@@ -8,17 +8,11 @@
 #include <QCryptographicHash>
 #include "cryptographymanager.h"
 
-AuthDialog::AuthDialog(QWidget *parent) :
-    QDialog(parent)
+AuthDialog::AuthDialog(Database* db, QWidget *parent) :
+    QDialog(parent),
+    m_db(db)
 {
     setupUi();
-
-    db = new Database(this);
-    if (!db->connect()) {
-        QMessageBox::critical(this, "Ошибка", "Не удалось подключиться к базе данных.");
-        loginButton->setEnabled(false);
-        registerButton->setEnabled(false);
-    }
 
     connect(loginButton, &QPushButton::clicked, this, &AuthDialog::onLoginClicked);
     connect(registerButton, &QPushButton::clicked, this, &AuthDialog::onRegisterClicked);
@@ -75,7 +69,7 @@ void AuthDialog::onLoginClicked()
 
     const QString passwordHash = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
 
-    if (db->checkCredentials(login, passwordHash)) {
+    if (m_db->checkCredentials(login, passwordHash)) {
         m_login = login;
         accept();
     } else {
@@ -93,7 +87,7 @@ void AuthDialog::onRegisterClicked()
         return;
     }
 
-    if (db->userExists(login)) {
+    if (m_db->userExists(login)) {
         QMessageBox::warning(this, "Ошибка регистрации", "Пользователь с таким именем уже существует.");
         return;
     }
@@ -104,7 +98,7 @@ void AuthDialog::onRegisterClicked()
 
     QString passwordHash = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
 
-    if (db->addUser(login, passwordHash, publicKey, encryptedPrivateKey)) {
+    if (m_db->addUser(login, passwordHash, publicKey, encryptedPrivateKey)) {
         QMessageBox::information(this, "Успех", "Регистрация прошла успешно. Теперь вы можете войти.");
     } else {
         QMessageBox::warning(this, "Ошибка регистрации", "Не удалось зарегистрировать пользователя. Попробуйте еще раз.");

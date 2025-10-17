@@ -8,12 +8,12 @@
 #include <QTextEdit>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QListWidgetItem> // Необходимо для работы с элементами списка
+#include <QListWidgetItem>
 
-MainWindow::MainWindow(QWidget *parent)
+MainWindow::MainWindow(Database* db, QWidget *parent)
     : QMainWindow(parent)
     , m_networkManager(nullptr)
-    , m_db(nullptr)
+    , m_db(db)
 {
     setupUi();
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
