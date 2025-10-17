@@ -14,6 +14,7 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
     // --- UDP ЧАСТЬ ---
     udpSocket = new QUdpSocket(this);
 
+    // Слушаем (bind) на всех интерфейсах (AnyIPv4). Это надежно.
     if (!udpSocket->bind(QHostAddress::AnyIPv4, broadcastPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
         qWarning() << "UDP Socket could not bind:" << udpSocket->errorString();
     } else {
@@ -24,8 +25,9 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
 
     broadcastTimer = new QTimer(this);
     connect(broadcastTimer, &QTimer::timeout, this, &NetworkManager::sendBroadcast);
-    broadcastTimer->start(5000);
+    broadcastTimer->start(5000); // <-- ЭТА СТРОКА БЫЛА ПРОПУЩЕНА
     sendBroadcast();
+    // ----------------------
 
     // --- TCP ЧАСТЬ ---
     tcpServer = new QTcpServer(this);
@@ -92,7 +94,7 @@ void NetworkManager::onNewTcpConnection()
 void NetworkManager::sendBroadcast()
 {
     QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8();
-    // qDebug() << "Sending broadcast:" << datagram; // Можно раскомментировать для отладки
+    qDebug() << "Sending broadcast:" << datagram; // Можно раскомментировать для отладки
     udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
 }
 
