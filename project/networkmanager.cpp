@@ -5,8 +5,8 @@
 #include <QDebug>
 #include <QNetworkInterface>
 #include <QAbstractSocket>
-#include <QTcpServer> // Важные инклюды для TCP
-#include <QTcpSocket> // Важные инклюды для TCP
+#include <QTcpServer>
+#include <QTcpSocket>
 
 NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
     : QObject(parent), m_currentUserLogin(currentUserLogin)
@@ -14,22 +14,12 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
     // --- UDP ЧАСТЬ ---
     udpSocket = new QUdpSocket(this);
 
-    QHostAddress localAddress;
-    const QList<QHostAddress> allAddresses = QNetworkInterface::allAddresses();
-    for (const QHostAddress &address : allAddresses) {
-        if (address.protocol() == QAbstractSocket::IPv4Protocol && address != QHostAddress(QHostAddress::LocalHost)) {
-            QString ip = address.toString();
-            if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("172.16.")) {
-                localAddress = address;
-                break;
-            }
-        }
-    }
-    if (localAddress.isNull()) {
-        localAddress = QHostAddress::AnyIPv4;
+    if (!udpSocket->bind(QHostAddress::AnyIPv4, broadcastPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+        qWarning() << "UDP Socket could not bind:" << udpSocket->errorString();
+    } else {
+        qDebug() << "UDP Socket is listening on port" << broadcastPort;
     }
 
-    udpSocket->bind(localAddress, broadcastPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
     connect(udpSocket, &QUdpSocket::readyRead, this, &NetworkManager::processPendingDatagrams);
 
     broadcastTimer = new QTimer(this);
@@ -37,7 +27,7 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
     broadcastTimer->start(5000);
     sendBroadcast();
 
-    // --- TCP ЧАСТЬ (которой у вас не было) ---
+    // --- TCP ЧАСТЬ ---
     tcpServer = new QTcpServer(this);
     if (!tcpServer->listen(QHostAddress::Any, tcpPort)) {
         qWarning() << "TCP Server could not start on port" << tcpPort;
@@ -49,7 +39,6 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, QObject *parent)
     qDebug() << "NetworkManager initialized for user" << m_currentUserLogin;
 }
 
-// --- РЕАЛИЗАЦИЯ sendMessage (которой у вас не было) ---
 void NetworkManager::sendMessage(const QString &receiverLogin, const QString &message)
 {
     if (!m_discoveredUsers.contains(receiverLogin)) {
@@ -76,7 +65,6 @@ void NetworkManager::sendMessage(const QString &receiverLogin, const QString &me
     }
 }
 
-// --- РЕАЛИЗАЦИЯ onNewTcpConnection (которой у вас не было) ---
 void NetworkManager::onNewTcpConnection()
 {
     QTcpSocket *clientSocket = tcpServer->nextPendingConnection();
@@ -101,11 +89,10 @@ void NetworkManager::onNewTcpConnection()
     connect(clientSocket, &QTcpSocket::disconnected, clientSocket, &QTcpSocket::deleteLater);
 }
 
-// --- UDP функции, которые у вас уже были ---
 void NetworkManager::sendBroadcast()
 {
     QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8();
-    qDebug() << "Sending broadcast:" << datagram;
+    // qDebug() << "Sending broadcast:" << datagram; // Можно раскомментировать для отладки
     udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
 }
 
@@ -116,12 +103,21 @@ void NetworkManager::processPendingDatagrams()
         QByteArray data = datagram.data();
         QHostAddress senderAddress = datagram.senderAddress();
 
+        // Раскомментируйте для подробной отладки сети
+        // qDebug() << "Received datagram from" << senderAddress.toString() << "with data:" << data;
+
         if (data.startsWith("DISCOVER:")) {
             QString discoveredUserLogin = QString::fromUtf8(data.mid(9));
             if (discoveredUserLogin == m_currentUserLogin)
                 continue;
 
+            // IPv4-адрес может прийти в формате "::ffff:192.168.1.5", нужно его очистить
+            if (senderAddress.protocol() == QAbstractSocket::IPv4Protocol) {
+                senderAddress = QHostAddress(senderAddress.toIPv4Address());
+            }
+
             if (!m_discoveredUsers.contains(discoveredUserLogin) || m_discoveredUsers.value(discoveredUserLogin) != senderAddress) {
+                qDebug() << "Discovered/updated user:" << discoveredUserLogin << "at" << senderAddress.toString();
                 m_discoveredUsers[discoveredUserLogin] = senderAddress;
                 emit userListUpdated(m_discoveredUsers.keys());
             }
