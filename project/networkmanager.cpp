@@ -95,8 +95,45 @@ void NetworkManager::sendBroadcast()
     udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
 }
 
+<<<<<<< Updated upstream
 // В файле networkmanager.cpp
 
+=======
+void NetworkManager::sendBroadcastMessage(const QString &message)
+{
+    // Формируем пакет специального формата: "MSG_ALL:логин_отправителя:текст_сообщения"
+    QByteArray datagram = "MSG_ALL:" + m_currentUserLogin.toUtf8() + ":" + message.toUtf8();
+
+    // Используем нашу надежную функцию рассылки по всем интерфейсам
+    sendBroadcastDatagram(datagram);
+}
+
+// --- ИЗМЕНЯЕМ sendBroadcast ---
+// Мы вынесем логику рассылки в отдельную функцию, чтобы не дублировать код
+void NetworkManager::sendBroadcastDatagram(const QByteArray &datagram)
+{
+    udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
+
+    for (const QNetworkInterface &interface : QNetworkInterface::allInterfaces()) {
+        if ((interface.flags() & QNetworkInterface::IsUp) && (interface.flags() & QNetworkInterface::CanBroadcast)) {
+            for (const QNetworkAddressEntry &entry : interface.addressEntries()) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                    udpSocket->writeDatagram(datagram, entry.broadcast(), broadcastPort);
+                }
+            }
+        }
+    }
+}
+
+void NetworkManager::sendBroadcast()
+{
+    QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8() + ":" + m_publicKey.toUtf8();
+    sendBroadcastDatagram(datagram); // Теперь просто вызываем новую функцию
+}
+
+
+// --- ОБНОВЛЯЕМ processPendingDatagrams ---
+>>>>>>> Stashed changes
 void NetworkManager::processPendingDatagrams()
 {
     while (udpSocket->hasPendingDatagrams()) {
@@ -107,6 +144,7 @@ void NetworkManager::processPendingDatagrams()
         // Мы больше не будем здесь выводить [RAW], чтобы не засорять лог.
 
         if (data.startsWith("DISCOVER:")) {
+<<<<<<< Updated upstream
             QString discoveredUserLogin = QString::fromUtf8(data.mid(9));
             if (discoveredUserLogin == m_currentUserLogin)
                 continue;
@@ -131,6 +169,24 @@ void NetworkManager::processPendingDatagrams()
                 emit userListUpdated(m_discoveredUsers.keys());
             }
             // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+=======
+            // ... (вся логика обнаружения остается без изменений) ...
+
+        } else if (data.startsWith("MSG_ALL:")) { // <-- ДОБАВЛЕНА НОВАЯ ПРОВЕРКА
+            // Разбираем пакет "MSG_ALL:логин:сообщение"
+            QList<QByteArray> parts = data.mid(8).split(':');
+            if (parts.size() < 2) continue;
+
+            QString senderLogin = QString::fromUtf8(parts.takeFirst());
+            // Игнорируем наши собственные сообщения, которые мы получаем по "эху"
+            if (senderLogin == m_currentUserLogin) continue;
+
+            QString message = QString::fromUtf8(parts.join(':'));
+
+            qDebug() << "Received broadcast message from" << senderLogin << ":" << message;
+            // Отправляем сигнал в главное окно
+            emit broadcastMessageReceived(senderLogin, message);
+>>>>>>> Stashed changes
         }
     }
 }

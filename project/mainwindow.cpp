@@ -18,6 +18,8 @@ MainWindow::MainWindow(Database* db, QWidget *parent)
     setupUi();
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
     connect(chatListWidget, &QListWidget::currentItemChanged, this, &MainWindow::onChatSelectionChanged);
+    connect(m_networkManager, &NetworkManager::broadcastMessageReceived, this, &MainWindow::onBroadcastMessageReceived);
+
 }
 
 MainWindow::~MainWindow()
@@ -83,14 +85,49 @@ void MainWindow::onSendButtonClicked()
     QListWidgetItem *currentItem = chatListWidget->currentItem();
     if (!currentItem) return;
     QString receiverLogin = currentItem->text();
-    if (receiverLogin == "Общий чат" || receiverLogin == m_userLogin) return;
 
+<<<<<<< Updated upstream
     // ИСПОЛЬЗУЕМ ЛОГИНЫ ВМЕСТО ID
     m_db->addMessage(m_userLogin, receiverLogin, message);
 
     m_networkManager->sendMessage(receiverLogin, message);
 
     messageHistoryView->append(m_userLogin + ": " + message);
+=======
+    if (receiverLogin == "Общий чат") {
+        m_networkManager->sendBroadcastMessage(messageText);
+        messageHistoryView->append(m_userLogin + ": " + messageText);
+        messageInput->clear();
+        messageInput->setFocus();
+        return;
+    }
+
+    if (receiverLogin == m_userLogin) return;
+
+    // Шифрование
+    QString publicKeyPem = m_networkManager->getPublicKeyForUser(receiverLogin);
+    if (publicKeyPem.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось найти публичный ключ для пользователя. Возможно, он оффлайн или еще не обнаружен.");
+        return;
+    }
+    auto publicKey = CryptographyManager::pemToPkey(publicKeyPem.toUtf8(), false);
+    if (!publicKey) {
+        QMessageBox::warning(this, "Ошибка", "Публичный ключ пользователя некорректен.");
+        return;
+    }
+
+    QByteArray encryptedMessage = CryptographyManager::hybridEncrypt(messageText.toUtf8(), publicKey.get());
+    if (encryptedMessage.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось зашифровать сообщение.");
+        return;
+    }
+
+    m_networkManager->sendMessage(receiverLogin, encryptedMessage);
+
+    m_db->addMessage(m_userLogin, receiverLogin, messageText);
+
+    messageHistoryView->append(m_userLogin + ": " + messageText);
+>>>>>>> Stashed changes
     messageInput->clear();
     messageInput->setFocus();
 }
@@ -150,3 +187,39 @@ void MainWindow::onChatSelectionChanged()
         messageHistoryView->append(messagePair.first + ": " + messagePair.second);
     }
 }
+<<<<<<< Updated upstream
+=======
+
+void MainWindow::updateUserList(const QStringList &users)
+{
+    chatListWidget->blockSignals(true);
+    QString selectedUser;
+    if (chatListWidget->currentItem()) {
+        selectedUser = chatListWidget->currentItem()->text();
+    }
+    chatListWidget->clear();
+    chatListWidget->addItem("Общий чат");
+    for (const QString &user : users) {
+        if (user != m_userLogin) {
+            chatListWidget->addItem(user);
+        }
+    }
+    QList<QListWidgetItem*> items = chatListWidget->findItems(selectedUser, Qt::MatchExactly);
+    if (!items.isEmpty()) {
+        chatListWidget->setCurrentItem(items.first());
+    }
+    chatListWidget->blockSignals(false);
+    if (chatListWidget->currentItem() && messageHistoryView->toPlainText().isEmpty()) {
+        onChatSelectionChanged();
+    }
+}
+
+void MainWindow::onBroadcastMessageReceived(const QString &senderLogin, const QString &message)
+{
+    if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат") {
+        messageHistoryView->append(senderLogin + ": " + message);
+    } else {
+        qDebug() << "Received a new broadcast message, but 'Общий чат' is not active.";
+    }
+}
+>>>>>>> Stashed changes

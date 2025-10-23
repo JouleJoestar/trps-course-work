@@ -22,7 +22,12 @@ public:
 private slots:
     void onSendButtonClicked();
     void updateUserList(const QStringList &users);
+<<<<<<< Updated upstream
     void onMessageReceived(const QString &senderLogin, const QString &message);
+=======
+    void onMessageReceived(const QString &senderLogin, const QByteArray &encryptedMessage);
+    void onBroadcastMessageReceived(const QString& senderLogin, const QString& message);
+>>>>>>> Stashed changes
     void onChatSelectionChanged();
 
 private:
