@@ -31,7 +31,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUi()
 {
-    setWindowTitle("Мессенджер");
+    setWindowTitle("Коллектив");
     resize(800, 600);
 
     QWidget *centralWidget = new QWidget(this);
@@ -66,7 +66,7 @@ void MainWindow::setupUi()
 void MainWindow::setUserLogin(const QString &login, const QString &password)
 {
     m_userLogin = login;
-    setWindowTitle("Мессенджер - " + m_userLogin);
+    setWindowTitle("Коллектив - " + m_userLogin);
 
     QString privateKeyPem = m_db->getEncryptedPrivateKey(m_userLogin);
     if (privateKeyPem.isEmpty()) {

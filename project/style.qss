@@ -1,0 +1,84 @@
+/* ===== ОБЩИЙ СТИЛЬ ОКНА ===== */
+QWidget {
+    background-color: #17212b; /* Темно-синий фон по умолчанию */
+    color: #ffffff; /* Белый текст по умолчанию */
+    font-family: "Segoe UI"; /* Более приятный шрифт */
+    font-size: 14px;
+}
+
+/* ===== СПИСКИ, ПОЛЯ ВВОДА, ОКНО ЧАТА ===== */
+QListWidget, QLineEdit, QTextEdit {
+    background-color: #243447; /* Более светлый синий */
+    border: 1px solid #334e6d; /* Тонкая рамка */
+    border-radius: 8px; /* Скругленные углы */
+    padding: 5px;
+}
+
+QLineEdit, QTextEdit {
+    selection-background-color: #5181b8; /* Цвет выделенного текста */
+}
+
+/* ===== СПИСОК ЧАТОВ (QListWidget) ===== */
+QListWidget {
+    border-right: 2px solid #101a23; /* Разделительная линия */
+    padding: 0px;
+}
+
+QListWidget::item {
+    padding: 10px 8px;
+    border-bottom: 1px solid #1f2c3a; /* Разделитель между чатами */
+}
+
+QListWidget::item:hover {
+    background-color: #2a3f56; /* Цвет при наведении */
+}
+
+QListWidget::item:selected {
+    background-color: #5181b8; /* Ярко-синий для выбранного чата */
+    border-left: 3px solid #63a5ee;
+}
+
+/* ===== ПОЛОСА ПРОКРУТКИ (SCROLLBAR) ===== */
+QScrollBar:vertical {
+    border: none;
+    background: #243447;
+    width: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #5181b8;
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* ===== КНОПКИ ===== */
+QPushButton {
+    background-color: #5181b8;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #63a5ee; /* Светлее при наведении */
+}
+
+QPushButton:pressed {
+    background-color: #4a76a8; /* Темнее при нажатии */
+}
+
+/* ===== ДИАЛОГОВЫЕ ОКНА (АУТЕНТИФИКАЦИЯ) ===== */
+QDialog QLineEdit, QDialog QPushButton {
+    min-height: 20px; /* Делаем элементы в диалоге чуть крупнее */
+}
+
+QLabel {
+    background-color: transparent; /* Убираем фон у меток */
+    font-weight: bold;
+}
