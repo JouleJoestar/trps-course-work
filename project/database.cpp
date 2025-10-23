@@ -40,11 +40,10 @@ bool Database::initDb()
 
     if (!query.exec("CREATE TABLE IF NOT EXISTS messages ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                    "sender_login TEXT NOT NULL,"         // sender_id -> sender_login
-                    "receiver_login TEXT NOT NULL,"       // receiver_id -> receiver_login
+                    "sender_login TEXT NOT NULL,"
+                    "receiver_login TEXT NOT NULL,"
                     "content TEXT NOT NULL,"
                     "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP"
-                    // Внешние ключи (FOREIGN KEY) здесь больше не нужны
                     ")")) {
         qWarning() << "Failed to create 'messages' table:" << query.lastError().text();
         return false;
@@ -140,15 +139,13 @@ bool Database::addMessage(const QString &senderLogin, const QString &receiverLog
     return true;
 }
 
-// Загружает все сообщения между двумя пользователями
-QList<QPair<QString, QString>> Database::getMessages(const QString &user1Login, const QString &user2Login)
+QList<Message> Database::getMessages(const QString &user1Login, const QString &user2Login)
 {
-    QList<QPair<QString, QString>> messages;
+    QList<Message> messages;
     if (!db.isOpen()) return messages;
 
     QSqlQuery query;
-    // Запрос стал проще. JOIN больше не нужен.
-    query.prepare("SELECT sender_login, content "
+    query.prepare("SELECT sender_login, content, timestamp "
                   "FROM messages "
                   "WHERE (sender_login = :user1 AND receiver_login = :user2) "
                   "   OR (sender_login = :user2 AND receiver_login = :user1) "
@@ -162,9 +159,11 @@ QList<QPair<QString, QString>> Database::getMessages(const QString &user1Login, 
     }
 
     while (query.next()) {
-        QString senderLogin = query.value(0).toString();
-        QString content = query.value(1).toString();
-        messages.append(qMakePair(senderLogin, content));
+        Message msg;
+        msg.senderLogin = query.value(0).toString();
+        msg.content = query.value(1).toString();
+        msg.timestamp = query.value(2).toDateTime();
+        messages.append(msg);
     }
 
     return messages;
@@ -192,4 +191,26 @@ QString Database::getEncryptedPrivateKey(const QString &login)
         return query.value(0).toString();
     }
     return {};
+}
+
+QStringList Database::getAllChatPartners(const QString &currentUserLogin)
+{
+    QStringList partners;
+    if (!db.isOpen()) return partners;
+
+    QSqlQuery query;
+    query.prepare("SELECT DISTINCT receiver_login FROM messages WHERE sender_login = :user "
+                  "UNION "
+                  "SELECT DISTINCT sender_login FROM messages WHERE receiver_login = :user");
+    query.bindValue(":user", currentUserLogin);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to get all chat partners:" << query.lastError().text();
+        return partners;
+    }
+
+    while (query.next()) {
+        partners.append(query.value(0).toString());
+    }
+    return partners;
 }

@@ -4,13 +4,19 @@
 #include <QObject>
 #include <QHostAddress>
 #include <QMap>
-#include <QString> // <-- Добавлены инклюды
+#include <QString>
 #include <QByteArray>
+#include <QDateTime>
 
 class QUdpSocket;
 class QTimer;
 class QTcpServer;
 class QTcpSocket;
+
+struct UserInfo {
+    QHostAddress ipAddress;
+    QDateTime lastSeen;
+};
 
 class NetworkManager : public QObject
 {
@@ -21,6 +27,7 @@ public:
     void sendBroadcastMessage(const QString& message);
     QString getPublicKeyForUser(const QString& login);
     void sendBroadcastDatagram(const QByteArray &datagram);
+    void checkInactiveUsers();
 
 signals:
     void userListUpdated(const QStringList &users);
@@ -38,9 +45,10 @@ private:
 
     QUdpSocket *udpSocket;
     QTimer *broadcastTimer;
+    QTimer *cleanupTimer;
     QTcpServer *tcpServer;
 
-    QMap<QString, QHostAddress> m_discoveredUsers;
+    QMap<QString, UserInfo> m_discoveredUsers;
     QMap<QString, QString> m_userKeys;
 
     static const quint16 broadcastPort = 45454;

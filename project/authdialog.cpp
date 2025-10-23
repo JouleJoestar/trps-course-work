@@ -94,17 +94,14 @@ void AuthDialog::onRegisterClicked()
         return;
     }
 
-    // 1. Генерируем ключевую пару RSA
     auto pkey = CryptographyManager::generateRsaKeys();
     if (!pkey) {
         QMessageBox::critical(this, "Ошибка", "Не удалось сгенерировать ключевую пару RSA.");
         return;
     }
 
-    // 2. Преобразуем публичный ключ в PEM
     QByteArray publicKeyPem = CryptographyManager::pkeyToPem(pkey.get(), false);
 
-    // 3. Шифруем приватный ключ паролем (AES-256)
     QByteArray privateKeyEncryptedPem = CryptographyManager::encryptPrivateKey(pkey.get(), password);
 
     if (publicKeyPem.isEmpty() || privateKeyEncryptedPem.isEmpty()) {
@@ -112,10 +109,8 @@ void AuthDialog::onRegisterClicked()
         return;
     }
 
-    // 4. Хешируем пароль для хранения в БД
     QString passwordHash = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
 
-    // 5. Сохраняем все в базу данных
     if (m_db->addUser(login, passwordHash, QString::fromUtf8(publicKeyPem), QString::fromUtf8(privateKeyEncryptedPem))) {
         QMessageBox::information(this, "Успех", "Регистрация прошла успешно. Теперь вы можете войти.");
     } else {

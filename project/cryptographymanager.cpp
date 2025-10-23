@@ -5,7 +5,6 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 
-// --- ФУНКЦИИ ГЕНЕРАЦИИ И ШИФРОВАНИЯ КЛЮЧЕЙ ---
 
 CryptographyManager::EVP_PKEY_ptr CryptographyManager::generateRsaKeys() {
     EVP_PKEY* pkey_raw = nullptr;
@@ -51,9 +50,6 @@ QByteArray CryptographyManager::encryptPrivateKey(EVP_PKEY* pkey, const QString&
     return QByteArray(key_str, key_len);
 }
 
-
-// --- ВСПОМОГАТЕЛЬНАЯ СТРУКТУРА И КОЛБЭК ДЛЯ ПАРОЛЯ ---
-
 struct PasswordCallbackData {
     QByteArray password;
 };
@@ -65,9 +61,6 @@ static int password_callback(char* buf, int size, int rwflag, void* userdata) {
     memcpy(buf, cb_data->password.constData(), cb_data->password.length());
     return cb_data->password.length();
 }
-
-
-// --- ФУНКЦИИ ДЛЯ РАБОТЫ С PEM И ШИФРОВАНИЯ/ДЕШИФРОВАНИЯ ДАННЫХ ---
 
 CryptographyManager::EVP_PKEY_ptr CryptographyManager::pemToPkey(const QByteArray& pem, bool isPrivate, const QString& password)
 {
@@ -164,9 +157,6 @@ QByteArray CryptographyManager::hybridDecrypt(const QByteArray& encryptedData, E
     decryptedData.resize(out_len + final_len);
     return decryptedData;
 }
-
-
-// --- ФУНКЦИЯ ПОЛУЧЕНИЯ ОШИБОК ---
 
 QString CryptographyManager::getOpenSSLError() {
     CryptographyManager::BIO_ptr bio(BIO_new(BIO_s_mem()), &BIO_free);

@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include "cryptographymanager.h"
+#include <QSet>
 
 class QListWidget;
 class QTextEdit;
@@ -34,6 +35,7 @@ private:
     QTextEdit *messageHistoryView;
     QLineEdit *messageInput;
     QPushButton *sendButton;
+    QSet<QString> m_onlineUsers;
 
     QString m_userLogin;
     NetworkManager *m_networkManager;

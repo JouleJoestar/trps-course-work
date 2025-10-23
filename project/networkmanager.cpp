@@ -1,6 +1,7 @@
 #include "networkmanager.h"
 #include <QUdpSocket>
 #include <QTimer>
+#include <QDateTime>
 #include <QNetworkDatagram>
 #include <QDebug>
 #include <QNetworkInterface>
@@ -34,17 +35,17 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& p
     }
     connect(tcpServer, &QTcpServer::newConnection, this, &NetworkManager::onNewTcpConnection);
 
+    cleanupTimer = new QTimer(this);
+    connect(cleanupTimer, &QTimer::timeout, this, &NetworkManager::checkInactiveUsers);
+    cleanupTimer->start(10000);
+
     qDebug() << "NetworkManager initialized for user" << m_currentUserLogin;
 }
 
-
-// --- Приватная функция для рассылки UDP ---
 void NetworkManager::sendBroadcastDatagram(const QByteArray &datagram)
 {
-    // Пробуем отправить на общий broadcast-адрес
     udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
 
-    // И дополнительно рассылаем по всем активным интерфейсам (надежный метод)
     for (const QNetworkInterface &interface : QNetworkInterface::allInterfaces()) {
         if ((interface.flags() & QNetworkInterface::IsUp) && (interface.flags() & QNetworkInterface::CanBroadcast)) {
             for (const QNetworkAddressEntry &entry : interface.addressEntries()) {
@@ -56,9 +57,6 @@ void NetworkManager::sendBroadcastDatagram(const QByteArray &datagram)
     }
 }
 
-
-// --- Публичные методы ---
-
 void NetworkManager::sendMessage(const QString &receiverLogin, const QByteArray &encryptedMessage)
 {
     if (!m_discoveredUsers.contains(receiverLogin)) {
@@ -67,7 +65,7 @@ void NetworkManager::sendMessage(const QString &receiverLogin, const QByteArray 
     }
     QTcpSocket *socket = new QTcpSocket(this);
     connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
-    QHostAddress receiverAddress = m_discoveredUsers.value(receiverLogin);
+    QHostAddress receiverAddress = m_discoveredUsers.value(receiverLogin).ipAddress;
     socket->connectToHost(receiverAddress, tcpPort);
 
     if (socket->waitForConnected(3000)) {
@@ -91,9 +89,6 @@ QString NetworkManager::getPublicKeyForUser(const QString &login)
 {
     return m_userKeys.value(login, QString());
 }
-
-
-// --- Слоты ---
 
 void NetworkManager::onNewTcpConnection()
 {
@@ -128,10 +123,14 @@ void NetworkManager::processPendingDatagrams()
 
         if (data.startsWith("DISCOVER:")) {
             QList<QByteArray> parts = data.mid(9).split(':');
-            if (parts.size() < 2) continue;
+            if (parts.size() < 2) {
+                continue;
+            }
 
             QString discoveredUserLogin = QString::fromUtf8(parts.takeFirst());
-            if (discoveredUserLogin == m_currentUserLogin) continue;
+            if (discoveredUserLogin == m_currentUserLogin) {
+                continue;
+            }
 
             QString discoveredUserKey = QString::fromUtf8(parts.join(':'));
             QHostAddress cleanAddress(senderAddress.toIPv4Address());
@@ -141,25 +140,41 @@ void NetworkManager::processPendingDatagrams()
                 udpSocket->writeDatagram(responseDatagram, cleanAddress, broadcastPort);
             }
 
-            if (!m_discoveredUsers.contains(discoveredUserLogin) ||
-                m_discoveredUsers.value(discoveredUserLogin) != cleanAddress ||
-                m_userKeys.value(discoveredUserLogin) != discoveredUserKey)
-            {
-                m_discoveredUsers[discoveredUserLogin] = cleanAddress;
-                m_userKeys[discoveredUserLogin] = discoveredUserKey;
-                emit userListUpdated(m_discoveredUsers.keys());
-            }
-        }
-        else if (data.startsWith("MSG_ALL:"))
-        {
+            UserInfo userInfo;
+            userInfo.ipAddress = cleanAddress;
+            userInfo.lastSeen = QDateTime::currentDateTime();
+
+            m_discoveredUsers[discoveredUserLogin] = userInfo;
+            m_userKeys[discoveredUserLogin] = discoveredUserKey;
+
+        } else if (data.startsWith("MSG_ALL:")) {
             QList<QByteArray> parts = data.mid(8).split(':');
-            if (parts.size() < 2) continue;
+            if (parts.size() < 2) {
+                continue;
+            }
 
             QString senderLogin = QString::fromUtf8(parts.takeFirst());
-            if (senderLogin == m_currentUserLogin) continue;
+            if (senderLogin == m_currentUserLogin) {
+                continue;
+            }
 
             QString message = QString::fromUtf8(parts.join(':'));
             emit broadcastMessageReceived(senderLogin, message);
         }
     }
+}
+
+void NetworkManager::checkInactiveUsers()
+{
+    QDateTime currentTime = QDateTime::currentDateTime();
+    QStringList activeUsers;
+    QStringList allKnownUsers = m_discoveredUsers.keys();
+
+    for (const QString& login : allKnownUsers) {
+        if (m_discoveredUsers[login].lastSeen.secsTo(currentTime) <= 15) {
+            activeUsers.append(login);
+        }
+    }
+
+    emit userListUpdated(activeUsers);
 }

@@ -3,6 +3,14 @@
 
 #include <QObject>
 #include <QSqlDatabase>
+#include <QDateTime>
+
+
+struct Message {
+    QString senderLogin;
+    QString content;
+    QDateTime timestamp;
+};
 
 class Database : public QObject
 {
@@ -15,9 +23,9 @@ public:
     bool userExists(const QString &login);
     bool addUser(const QString &login, const QString &passwordHash, const QString &publicKey, const QString &encryptedPrivateKey);
     bool checkCredentials(const QString &login, const QString &passwordHash);
-
+    QStringList getAllChatPartners(const QString& currentUserLogin);
     bool addMessage(const QString &senderLogin, const QString &receiverLogin, const QString &content);
-    QList<QPair<QString, QString>> getMessages(const QString &user1Login, const QString &user2Login);
+    QList<Message> getMessages(const QString &user1Login, const QString &user2Login);
 
     QString getPublicKey(const QString &login);
     QString getEncryptedPrivateKey(const QString &login);

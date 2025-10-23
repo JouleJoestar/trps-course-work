@@ -68,7 +68,6 @@ void MainWindow::setUserLogin(const QString &login, const QString &password)
     m_userLogin = login;
     setWindowTitle("Мессенджер - " + m_userLogin);
 
-    // --- РАСШИФРОВКА ПРИВАТНОГО КЛЮЧА ПРИ ВХОДЕ ---
     QString privateKeyPem = m_db->getEncryptedPrivateKey(m_userLogin);
     if (privateKeyPem.isEmpty()) {
         QMessageBox::critical(this, "Критическая ошибка", "Не удалось загрузить приватный ключ из базы данных.");
@@ -108,7 +107,11 @@ void MainWindow::onSendButtonClicked()
     }
     if (receiverLogin == m_userLogin) return;
 
-    // --- ШАГ 1: Получаем публичный ключ получателя ---
+    if (!m_onlineUsers.contains(receiverLogin)) {
+        QMessageBox::warning(this, "Пользователь оффлайн", "Невозможно отправить сообщение, так как пользователь не в сети.");
+        return;
+    }
+
     QString publicKeyPem = m_networkManager->getPublicKeyForUser(receiverLogin);
     if (publicKeyPem.isEmpty()) {
         QMessageBox::warning(this, "Ошибка", "Не удалось найти публичный ключ для пользователя. Возможно, он оффлайн или еще не обнаружен.");
@@ -120,18 +123,14 @@ void MainWindow::onSendButtonClicked()
         return;
     }
 
-    // --- ШАГ 2: Шифруем сообщение ---
     QByteArray encryptedMessage = CryptographyManager::hybridEncrypt(messageText.toUtf8(), publicKey.get());
     if (encryptedMessage.isEmpty()) {
         QMessageBox::warning(this, "Ошибка", "Не удалось зашифровать сообщение.");
         return;
     }
 
-    // --- ШАГ 3: Отправляем зашифрованные данные ---
     m_networkManager->sendMessage(receiverLogin, encryptedMessage);
 
-    // --- ШАГ 4: Сохраняем в БД и отображаем ---
-    // Сохраняем оригинальный, незашифрованный текст для нашей локальной истории
     m_db->addMessage(m_userLogin, receiverLogin, messageText);
 
     messageHistoryView->append(m_userLogin + ": " + messageText);
@@ -141,35 +140,28 @@ void MainWindow::onSendButtonClicked()
 
 void MainWindow::onMessageReceived(const QString &senderLogin, const QByteArray &encryptedMessage)
 {
-    // --- ШАГ 1: Расшифровываем сообщение нашим приватным ключом ---
     QByteArray decryptedMessage = CryptographyManager::hybridDecrypt(encryptedMessage, m_privateKey.get());
 
     if (decryptedMessage.isEmpty()) {
         qWarning() << "Failed to decrypt a message from" << senderLogin;
-        // Можно добавить уведомление в UI, что пришло поврежденное сообщение
         return;
     }
     QString messageText = QString::fromUtf8(decryptedMessage);
 
-    // --- ШАГ 2: Сохраняем в БД и отображаем ---
     m_db->addMessage(senderLogin, m_userLogin, messageText);
 
-    // Отображаем сообщение, только если сейчас открыт чат с этим отправителем
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == senderLogin) {
         messageHistoryView->append(senderLogin + ": " + messageText);
     } else {
-        // В будущем здесь можно добавить уведомление о новом сообщении
         qDebug() << "Received a new message from" << senderLogin << "but chat is not active.";
     }
 }
 
 void MainWindow::onBroadcastMessageReceived(const QString &senderLogin, const QString &message)
 {
-    // Отображаем сообщение, только если сейчас открыт "Общий чат"
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат") {
         messageHistoryView->append(senderLogin + ": " + message);
     } else {
-        // В будущем здесь можно добавить уведомление о новом сообщении в общем чате
         qDebug() << "Received a new broadcast message, but 'Общий чат' is not active.";
     }
 }
@@ -183,32 +175,47 @@ void MainWindow::onChatSelectionChanged()
     }
     QString selectedUser = currentItem->text();
 
-    QList<QPair<QString, QString>> history = m_db->getMessages(m_userLogin, selectedUser);
-    for (const auto &messagePair : history) {
-        messageHistoryView->append(messagePair.first + ": " + messagePair.second);
+    QList<Message> history = m_db->getMessages(m_userLogin, selectedUser);
+
+    for (const Message &msg : history) {
+        QString timeString = msg.timestamp.toString("hh:mm");
+        QString formattedMessage = QString("[%1] %2: %3")
+                                       .arg(timeString)
+                                       .arg(msg.senderLogin)
+                                       .arg(msg.content);
+        messageHistoryView->append(formattedMessage);
     }
 }
 
-void MainWindow::updateUserList(const QStringList &users)
+void MainWindow::updateUserList(const QStringList &onlineUsers)
 {
-    chatListWidget->blockSignals(true);
-    QString selectedUser;
-    if (chatListWidget->currentItem()) {
-        selectedUser = chatListWidget->currentItem()->text();
-    }
-    chatListWidget->clear();
-    chatListWidget->addItem("Общий чат");
-    for (const QString &user : users) {
-        if (user != m_userLogin) {
+    m_onlineUsers = QSet<QString>(onlineUsers.begin(), onlineUsers.end());
+    qDebug() << "Updating online users:" << m_onlineUsers;
+
+    QStringList allChatPartners = m_db->getAllChatPartners(m_userLogin);
+    for (const QString& user : allChatPartners) {
+        if (chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
             chatListWidget->addItem(user);
         }
     }
-    QList<QListWidgetItem*> items = chatListWidget->findItems(selectedUser, Qt::MatchExactly);
-    if (!items.isEmpty()) {
-        chatListWidget->setCurrentItem(items.first());
+    for (const QString& user : onlineUsers) {
+        if (user != m_userLogin && chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
+            chatListWidget->addItem(user);
+        }
     }
-    chatListWidget->blockSignals(false);
-    if (chatListWidget->currentItem() && messageHistoryView->toPlainText().isEmpty()) {
-        onChatSelectionChanged();
+
+    for (int i = 0; i < chatListWidget->count(); ++i) {
+        QListWidgetItem *item = chatListWidget->item(i);
+        QString login = item->text();
+
+        if (login == "Общий чат") continue;
+
+        if (m_onlineUsers.contains(login)) {
+            item->setForeground(Qt::white);
+            item->setFont(QFont("Arial", 10, QFont::Bold));
+        } else {
+            item->setForeground(Qt::gray);
+            item->setFont(QFont("Arial", 10, QFont::Normal));
+        }
     }
 }
