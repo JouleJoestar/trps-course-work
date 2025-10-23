@@ -93,6 +93,7 @@ void MainWindow::onSendButtonClicked()
 
     if (receiverLogin == "Общий чат") {
         m_networkManager->sendBroadcastMessage(messageText);
+        m_db->addMessage(m_userLogin, "__broadcast__", messageText);
         addMessageToView(m_userLogin, messageText, QDateTime::currentDateTime().toString("hh:mm"));
         messageInput->clear();
         messageInput->setFocus();
@@ -152,10 +153,14 @@ void MainWindow::onMessageReceived(const QString &senderLogin, const QByteArray 
 
 void MainWindow::onBroadcastMessageReceived(const QString &senderLogin, const QString &message)
 {
+    m_db->addMessage(senderLogin, "__broadcast__", message);
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат") {
         addMessageToView(senderLogin, message, QDateTime::currentDateTime().toString("hh:mm"));
     } else {
-        qDebug() << "Received a new broadcast message, but 'Общий чат' is not active.";
+        QList<QListWidgetItem*> items = chatListWidget->findItems("Общий чат", Qt::MatchExactly);
+        if (!items.isEmpty()) {
+            items.first()->setForeground(Qt::yellow);
+        }
     }
 }
 
@@ -163,12 +168,18 @@ void MainWindow::onChatSelectionChanged()
 {
     QListWidgetItem *currentItem = chatListWidget->currentItem();
     messageView->clear();
-    if (!currentItem || currentItem->text() == "Общий чат") {
-        return;
-    }
-    QString selectedUser = currentItem->text();
+    if (!currentItem) return;
 
-    QList<Message> history = m_db->getMessages(m_userLogin, selectedUser);
+    currentItem->setForeground(Qt::white);
+
+    QString selectedChat = currentItem->text();
+    QList<Message> history;
+
+    if (selectedChat == "Общий чат") {
+         history = m_db->getBroadcastMessages();
+    } else {
+        history = m_db->getMessages(m_userLogin, selectedChat);
+    }
 
     for (const Message &msg : history) {
         addMessageToView(msg.senderLogin, msg.content, msg.timestamp.toString("hh:mm"));
@@ -205,6 +216,21 @@ void MainWindow::updateUserList(const QStringList &onlineUsers)
             item->setForeground(Qt::gray);
             item->setFont(QFont("Arial", 10, QFont::Normal));
         }
+
+        if (chatListWidget->findItems("Общий чат", Qt::MatchExactly).isEmpty()) {
+            chatListWidget->insertItem(0, "Общий чат");
+        }
+
+        QStringList allKnownUsers = m_db->getAllChatPartners(m_userLogin);
+        allKnownUsers.append(onlineUsers);
+        allKnownUsers.removeDuplicates();
+
+        for (const QString& user : allKnownUsers) {
+            if (user != m_userLogin && chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
+                chatListWidget->addItem(user);
+            }
+        }
+
     }
 }
 
@@ -212,10 +238,7 @@ void MainWindow::addMessageToView(const QString &sender, const QString &text, co
 {
     bool isMyMessage = (sender == m_userLogin);
     bool isGeneralChat = (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат");
-    MessageWidget* messageWidget = new MessageWidget(sender, text, time, isMyMessage, this);
-
-    if(isGeneralChat) messageWidget->findChild<QLabel*>("senderLabel")->setVisible(true);
-
+    MessageWidget* messageWidget = new MessageWidget(sender, text, time, isMyMessage, isGeneralChat, this);
     QListWidgetItem* listItem = new QListWidgetItem(messageView);
 
     listItem->setSizeHint(messageWidget->sizeHint());

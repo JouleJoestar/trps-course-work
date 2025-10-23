@@ -211,3 +211,29 @@ QStringList Database::getAllChatPartners(const QString &currentUserLogin)
     }
     return partners;
 }
+
+QList<Message> Database::getBroadcastMessages()
+{
+    QList<Message> messages;
+    if (!db.isOpen()) return messages;
+
+    QSqlQuery query;
+    query.prepare("SELECT sender_login, content, timestamp "
+                  "FROM messages "
+                  "WHERE receiver_login = '__broadcast__' "
+                  "ORDER BY timestamp ASC");
+
+    if (!query.exec()) {
+        qWarning() << "Failed to get broadcast messages:" << query.lastError().text();
+        return messages;
+    }
+
+    while (query.next()) {
+        Message msg;
+        msg.senderLogin = query.value(0).toString();
+        msg.content = query.value(1).toString();
+        msg.timestamp = query.value(2).toDateTime();
+        messages.append(msg);
+    }
+    return messages;
+}

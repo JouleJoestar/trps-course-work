@@ -4,7 +4,7 @@
 #include <QVBoxLayout>
 #include <QResizeEvent>
 
-MessageWidget::MessageWidget(const QString &sender, const QString &text, const QString &time, bool isMyMessage, QWidget *parent)
+MessageWidget::MessageWidget(const QString &sender, const QString &text, const QString &time, bool isMyMessage, bool isGeneralChat, QWidget *parent)
     : QWidget(parent)
 {
     QHBoxLayout* mainLayout = new QHBoxLayout(this);
@@ -32,6 +32,12 @@ MessageWidget::MessageWidget(const QString &sender, const QString &text, const Q
     bubbleLayout->addWidget(timeLabel);
     bubbleLayout->setAlignment(timeLabel, Qt::AlignRight);
 
+    if (isGeneralChat) {
+        senderLabel->setVisible(true);
+    } else {
+        senderLabel->setVisible(false);
+    }
+
     if (isMyMessage) {
         bubble->setStyleSheet("QWidget#bubble { background-color: #2b5278; border-radius: 10px; }");
         mainLayout->addStretch();
@@ -40,8 +46,6 @@ MessageWidget::MessageWidget(const QString &sender, const QString &text, const Q
         bubble->setStyleSheet("QWidget#bubble { background-color: #334e6d; border-radius: 10px; }");
         mainLayout->addWidget(bubble);
         mainLayout->addStretch();
-        if (sender != "Общий чат") senderLabel->setVisible(false);
-    }
 }
 
 void MessageWidget::resizeEvent(QResizeEvent *event)

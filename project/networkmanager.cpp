@@ -28,7 +28,7 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& p
 
     cleanupTimer = new QTimer(this);
     connect(cleanupTimer, &QTimer::timeout, this, &NetworkManager::checkInactiveUsers);
-    cleanupTimer->start(10000);
+    cleanupTimer->start(5000);
 
     qDebug() << "NetworkManager initialized for user" << m_currentUserLogin;
 }

@@ -32,6 +32,7 @@ public:
 
     QString getPublicKey(const QString &login);
     QString getEncryptedPrivateKey(const QString &login);
+    QList<Message> getBroadcastMessages();
 
 private:
     bool initDb();
