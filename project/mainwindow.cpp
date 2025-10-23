@@ -1,17 +1,7 @@
 #include "mainwindow.h"
 #include "networkmanager.h"
 #include "database.h"
-#include "cryptographymanager.h"
-#include <QWidget>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QListWidget>
-#include <QTextEdit>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QListWidgetItem>
-#include <QMessageBox>
-#include <QDebug>
+#include "messagewidget.h"
 
 MainWindow::MainWindow(Database* db, QWidget *parent)
     : QMainWindow(parent)
@@ -41,8 +31,11 @@ void MainWindow::setupUi()
     chatListWidget->setMaximumWidth(200);
 
     QVBoxLayout *chatLayout = new QVBoxLayout();
-    messageHistoryView = new QTextEdit(this);
-    messageHistoryView->setReadOnly(true);
+    messageView = new QListWidget(this);
+    messageView->setFocusPolicy(Qt::NoFocus);
+    messageView->setStyleSheet("QListWidget { border: none; }");
+    messageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    messageView->setSelectionMode(QAbstractItemView::NoSelection);
 
     QHBoxLayout *inputLayout = new QHBoxLayout();
     messageInput = new QLineEdit(this);
@@ -52,7 +45,7 @@ void MainWindow::setupUi()
     inputLayout->addWidget(messageInput);
     inputLayout->addWidget(sendButton);
 
-    chatLayout->addWidget(messageHistoryView);
+    chatLayout->addWidget(messageView);
     chatLayout->addLayout(inputLayout);
 
     mainLayout->addWidget(chatListWidget);
@@ -100,7 +93,7 @@ void MainWindow::onSendButtonClicked()
 
     if (receiverLogin == "Общий чат") {
         m_networkManager->sendBroadcastMessage(messageText);
-        messageHistoryView->append(m_userLogin + ": " + messageText);
+        addMessageToView(m_userLogin, messageText, QDateTime::currentDateTime().toString("hh:mm"));
         messageInput->clear();
         messageInput->setFocus();
         return;
@@ -133,7 +126,7 @@ void MainWindow::onSendButtonClicked()
 
     m_db->addMessage(m_userLogin, receiverLogin, messageText);
 
-    messageHistoryView->append(m_userLogin + ": " + messageText);
+    addMessageToView(m_userLogin, messageText, QDateTime::currentDateTime().toString("hh:mm"));
     messageInput->clear();
     messageInput->setFocus();
 }
@@ -151,7 +144,7 @@ void MainWindow::onMessageReceived(const QString &senderLogin, const QByteArray 
     m_db->addMessage(senderLogin, m_userLogin, messageText);
 
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == senderLogin) {
-        messageHistoryView->append(senderLogin + ": " + messageText);
+        addMessageToView(senderLogin, messageText, QDateTime::currentDateTime().toString("hh:mm"));
     } else {
         qDebug() << "Received a new message from" << senderLogin << "but chat is not active.";
     }
@@ -160,7 +153,7 @@ void MainWindow::onMessageReceived(const QString &senderLogin, const QByteArray 
 void MainWindow::onBroadcastMessageReceived(const QString &senderLogin, const QString &message)
 {
     if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат") {
-        messageHistoryView->append(senderLogin + ": " + message);
+        addMessageToView(senderLogin, message, QDateTime::currentDateTime().toString("hh:mm"));
     } else {
         qDebug() << "Received a new broadcast message, but 'Общий чат' is not active.";
     }
@@ -169,7 +162,7 @@ void MainWindow::onBroadcastMessageReceived(const QString &senderLogin, const QS
 void MainWindow::onChatSelectionChanged()
 {
     QListWidgetItem *currentItem = chatListWidget->currentItem();
-    messageHistoryView->clear();
+    messageView->clear();
     if (!currentItem || currentItem->text() == "Общий чат") {
         return;
     }
@@ -178,12 +171,7 @@ void MainWindow::onChatSelectionChanged()
     QList<Message> history = m_db->getMessages(m_userLogin, selectedUser);
 
     for (const Message &msg : history) {
-        QString timeString = msg.timestamp.toString("hh:mm");
-        QString formattedMessage = QString("[%1] %2: %3")
-                                       .arg(timeString)
-                                       .arg(msg.senderLogin)
-                                       .arg(msg.content);
-        messageHistoryView->append(formattedMessage);
+        addMessageToView(msg.senderLogin, msg.content, msg.timestamp.toString("hh:mm"));
     }
 }
 
@@ -218,4 +206,22 @@ void MainWindow::updateUserList(const QStringList &onlineUsers)
             item->setFont(QFont("Arial", 10, QFont::Normal));
         }
     }
+}
+
+void MainWindow::addMessageToView(const QString &sender, const QString &text, const QString &time)
+{
+    bool isMyMessage = (sender == m_userLogin);
+    bool isGeneralChat = (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат");
+    MessageWidget* messageWidget = new MessageWidget(sender, text, time, isMyMessage, this);
+
+    if(isGeneralChat) messageWidget->findChild<QLabel*>("senderLabel")->setVisible(true);
+
+    QListWidgetItem* listItem = new QListWidgetItem(messageView);
+
+    listItem->setSizeHint(messageWidget->sizeHint());
+
+    messageView->addItem(listItem);
+    messageView->setItemWidget(listItem, messageWidget);
+
+    messageView->scrollToBottom();
 }

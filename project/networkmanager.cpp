@@ -1,13 +1,4 @@
 #include "networkmanager.h"
-#include <QUdpSocket>
-#include <QTimer>
-#include <QDateTime>
-#include <QNetworkDatagram>
-#include <QDebug>
-#include <QNetworkInterface>
-#include <QAbstractSocket>
-#include <QTcpServer>
-#include <QTcpSocket>
 
 NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& publicKey, QObject *parent)
     : QObject(parent), m_currentUserLogin(currentUserLogin), m_publicKey(publicKey)

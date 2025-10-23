@@ -1,8 +1,5 @@
 #include "database.h"
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QDebug>
-#include <QSqlDriver>
+
 Database::Database(QObject *parent) : QObject(parent)
 {
 }

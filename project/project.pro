@@ -27,6 +27,7 @@ SOURCES += \
     database.cpp \
     main.cpp \
     mainwindow.cpp \
+    messagewidget.cpp \
     networkmanager.cpp
 
 HEADERS += \
@@ -34,6 +35,7 @@ HEADERS += \
     cryptographymanager.h \
     database.h \
     mainwindow.h \
+    messagewidget.h \
     networkmanager.h
 
 # Default rules for deployment.

@@ -4,7 +4,10 @@
 #include <QObject>
 #include <QSqlDatabase>
 #include <QDateTime>
-
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QDebug>
+#include <QSqlDriver>
 
 struct Message {
     QString senderLogin;

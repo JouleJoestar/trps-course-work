@@ -7,6 +7,15 @@
 #include <QString>
 #include <QByteArray>
 #include <QDateTime>
+#include <QUdpSocket>
+#include <QTimer>
+#include <QDateTime>
+#include <QNetworkDatagram>
+#include <QDebug>
+#include <QNetworkInterface>
+#include <QAbstractSocket>
+#include <QTcpServer>
+#include <QTcpSocket>
 
 class QUdpSocket;
 class QTimer;

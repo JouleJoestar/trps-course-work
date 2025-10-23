@@ -4,6 +4,17 @@
 #include <QMainWindow>
 #include "cryptographymanager.h"
 #include <QSet>
+#include <QWidget>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QListWidget>
+#include <QTextEdit>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QListWidgetItem>
+#include <QMessageBox>
+#include <QDebug>
+#include <QLabel>
 
 class QListWidget;
 class QTextEdit;
@@ -27,12 +38,13 @@ private slots:
     void onMessageReceived(const QString &senderLogin, const QByteArray &encryptedMessage);
     void onBroadcastMessageReceived(const QString& senderLogin, const QString& message);
     void onChatSelectionChanged();
+    void addMessageToView(const QString& sender, const QString& text, const QString& time);
 
 private:
     void setupUi();
 
     QListWidget *chatListWidget;
-    QTextEdit *messageHistoryView;
+    QListWidget *messageView;
     QLineEdit *messageInput;
     QPushButton *sendButton;
     QSet<QString> m_onlineUsers;
