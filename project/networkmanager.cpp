@@ -14,7 +14,7 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& p
 
     broadcastTimer = new QTimer(this);
     connect(broadcastTimer, &QTimer::timeout, this, &NetworkManager::sendBroadcast);
-    broadcastTimer->start(5000);
+    broadcastTimer->start(1000);
     sendBroadcast();
 
     // --- TCP Setup ---
@@ -28,7 +28,7 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& p
 
     cleanupTimer = new QTimer(this);
     connect(cleanupTimer, &QTimer::timeout, this, &NetworkManager::checkInactiveUsers);
-    cleanupTimer->start(5000);
+    cleanupTimer->start(1000);
 
     qDebug() << "NetworkManager initialized for user" << m_currentUserLogin;
 }
@@ -59,11 +59,11 @@ void NetworkManager::sendMessage(const QString &receiverLogin, const QByteArray 
     QHostAddress receiverAddress = m_discoveredUsers.value(receiverLogin).ipAddress;
     socket->connectToHost(receiverAddress, tcpPort);
 
-    if (socket->waitForConnected(3000)) {
+    if (socket->waitForConnected(1000)) {
         QByteArray data = m_currentUserLogin.toUtf8() + ":" + encryptedMessage;
         socket->write(data);
         socket->flush();
-        socket->waitForBytesWritten(1000);
+        socket->waitForBytesWritten(500);
         socket->disconnectFromHost();
     } else {
         qWarning() << "Could not connect to" << receiverLogin << "for private message:" << socket->errorString();
@@ -86,7 +86,7 @@ void NetworkManager::onNewTcpConnection()
     QTcpSocket *clientSocket = tcpServer->nextPendingConnection();
     if (!clientSocket) return;
 
-    if (clientSocket->waitForReadyRead(1000)) {
+    if (clientSocket->waitForReadyRead(500)) {
         QByteArray rawData = clientSocket->readAll();
         int separatorIndex = rawData.indexOf(':');
         if (separatorIndex != -1) {

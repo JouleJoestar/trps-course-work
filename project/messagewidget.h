@@ -10,9 +10,8 @@ class MessageWidget : public QWidget
     Q_OBJECT
 public:
     explicit MessageWidget(const QString& sender, const QString& text, const QString& time, bool isMyMessage, bool isGeneralChat, QWidget *parent = nullptr);
-
 protected:
-    void resizeEvent(QResizeEvent* event) override;
+    void resizeEvent(QResizeEvent *event);
 };
 
 #endif // MESSAGEWIDGET_H

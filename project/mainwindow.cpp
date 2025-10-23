@@ -32,6 +32,7 @@ void MainWindow::setupUi()
 
     QVBoxLayout *chatLayout = new QVBoxLayout();
     messageView = new QListWidget(this);
+    messageView->setSpacing(5);
     messageView->setFocusPolicy(Qt::NoFocus);
     messageView->setStyleSheet("QListWidget { border: none; }");
     messageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -191,14 +192,24 @@ void MainWindow::updateUserList(const QStringList &onlineUsers)
     m_onlineUsers = QSet<QString>(onlineUsers.begin(), onlineUsers.end());
     qDebug() << "Updating online users:" << m_onlineUsers;
 
-    QStringList allChatPartners = m_db->getAllChatPartners(m_userLogin);
-    for (const QString& user : allChatPartners) {
-        if (chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
-            chatListWidget->addItem(user);
-        }
+    QString selectedChat;
+    if (chatListWidget->currentItem()) {
+        selectedChat = chatListWidget->currentItem()->text();
     }
-    for (const QString& user : onlineUsers) {
-        if (user != m_userLogin && chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
+
+    if (chatListWidget->findItems("Общий чат", Qt::MatchExactly).isEmpty()) {
+        chatListWidget->insertItem(0, "Общий чат");
+    }
+
+    QStringList allKnownUsers = m_db->getAllChatPartners(m_userLogin);
+    allKnownUsers.append(onlineUsers);
+    allKnownUsers.removeDuplicates();
+
+    for (const QString& user : allKnownUsers) {
+        if (user == m_userLogin || user == "__broadcast__") {
+            continue;
+        }
+        if (chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
             chatListWidget->addItem(user);
         }
     }
@@ -207,7 +218,9 @@ void MainWindow::updateUserList(const QStringList &onlineUsers)
         QListWidgetItem *item = chatListWidget->item(i);
         QString login = item->text();
 
-        if (login == "Общий чат") continue;
+        if (login == "Общий чат") {
+            continue;
+        }
 
         if (m_onlineUsers.contains(login)) {
             item->setForeground(Qt::white);
@@ -216,21 +229,15 @@ void MainWindow::updateUserList(const QStringList &onlineUsers)
             item->setForeground(Qt::gray);
             item->setFont(QFont("Arial", 10, QFont::Normal));
         }
+    }
 
-        if (chatListWidget->findItems("Общий чат", Qt::MatchExactly).isEmpty()) {
-            chatListWidget->insertItem(0, "Общий чат");
+    if (!selectedChat.isEmpty()) {
+        QList<QListWidgetItem*> items = chatListWidget->findItems(selectedChat, Qt::MatchExactly);
+        if (!items.isEmpty()) {
+            chatListWidget->blockSignals(true);
+            chatListWidget->setCurrentItem(items.first());
+            chatListWidget->blockSignals(false);
         }
-
-        QStringList allKnownUsers = m_db->getAllChatPartners(m_userLogin);
-        allKnownUsers.append(onlineUsers);
-        allKnownUsers.removeDuplicates();
-
-        for (const QString& user : allKnownUsers) {
-            if (user != m_userLogin && chatListWidget->findItems(user, Qt::MatchExactly).isEmpty()) {
-                chatListWidget->addItem(user);
-            }
-        }
-
     }
 }
 
@@ -238,13 +245,17 @@ void MainWindow::addMessageToView(const QString &sender, const QString &text, co
 {
     bool isMyMessage = (sender == m_userLogin);
     bool isGeneralChat = (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат");
-    MessageWidget* messageWidget = new MessageWidget(sender, text, time, isMyMessage, isGeneralChat, this);
-    QListWidgetItem* listItem = new QListWidgetItem(messageView);
+
+    MessageWidget *messageWidget = new MessageWidget(sender, text, time, isMyMessage, isGeneralChat, messageView);
+
+    QListWidgetItem *listItem = new QListWidgetItem();
 
     listItem->setSizeHint(messageWidget->sizeHint());
 
     messageView->addItem(listItem);
+
     messageView->setItemWidget(listItem, messageWidget);
+
 
     messageView->scrollToBottom();
 }

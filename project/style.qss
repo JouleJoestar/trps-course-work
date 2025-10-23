@@ -82,3 +82,4 @@ QLabel {
     background-color: transparent; /* Убираем фон у меток */
     font-weight: bold;
 }
+
