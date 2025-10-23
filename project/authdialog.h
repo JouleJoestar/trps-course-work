@@ -3,7 +3,7 @@
 
 #include <QDialog>
 
-class Database; // Используем forward declaration
+class Database;
 class QLineEdit;
 class QPushButton;
 
@@ -15,7 +15,6 @@ public:
     explicit AuthDialog(Database* db, QWidget *parent = nullptr);
     ~AuthDialog();
     QString getLogin() const;
-    // ИЗМЕНЕНИЕ: Добавляем метод для получения пароля
     QString getPassword() const;
 
 private slots:
@@ -32,7 +31,6 @@ private:
 
     Database *m_db;
     QString m_login;
-    // ИЗМЕНЕНИЕ: Добавляем поле для пароля
     QString m_password;
 };
 

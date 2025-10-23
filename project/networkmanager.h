@@ -16,18 +16,16 @@ class NetworkManager : public QObject
 {
     Q_OBJECT
 public:
-    // ИЗМЕНЕНИЕ: Принимаем publicKey
     explicit NetworkManager(const QString &currentUserLogin, const QString& publicKey, QObject *parent = nullptr);
-    // ИЗМЕНЕНИЕ: Отправляем QByteArray
     void sendMessage(const QString &receiverLogin, const QByteArray &encryptedMessage);
-
-    // ИЗМЕНЕНИЕ: Новый метод для получения ключа
+    void sendBroadcastMessage(const QString& message);
     QString getPublicKeyForUser(const QString& login);
+    void sendBroadcastDatagram(const QByteArray &datagram);
 
 signals:
     void userListUpdated(const QStringList &users);
-    // ИЗМЕНЕНИЕ: Отправляем QByteArray
     void messageReceived(const QString &senderLogin, const QByteArray &encryptedMessage);
+    void broadcastMessageReceived(const QString& senderLogin, const QString& message);
 
 private slots:
     void sendBroadcast();
@@ -36,14 +34,14 @@ private slots:
 
 private:
     QString m_currentUserLogin;
-    QString m_publicKey; // Наш публичный ключ
+    QString m_publicKey;
 
     QUdpSocket *udpSocket;
     QTimer *broadcastTimer;
     QTcpServer *tcpServer;
 
     QMap<QString, QHostAddress> m_discoveredUsers;
-    QMap<QString, QString> m_userKeys; // Хранилище публичных ключей
+    QMap<QString, QString> m_userKeys;
 
     static const quint16 broadcastPort = 45454;
     static const quint16 tcpPort = 45455;

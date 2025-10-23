@@ -1,8 +1,7 @@
 #include "mainwindow.h"
 #include "networkmanager.h"
 #include "database.h"
-#include "cryptographymanager.h" // <-- Включаем наш крипто-менеджер
-
+#include "cryptographymanager.h"
 #include <QWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -11,17 +10,18 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QListWidgetItem>
-#include <QMessageBox> // Для вывода ошибок
+#include <QMessageBox>
 #include <QDebug>
 
 MainWindow::MainWindow(Database* db, QWidget *parent)
     : QMainWindow(parent)
     , m_networkManager(nullptr)
     , m_db(db)
-    , m_privateKey(nullptr, &EVP_PKEY_free) // <-- ИСПРАВЛЕНИЕ: Явно инициализируем unique_ptr
+    , m_privateKey(nullptr, &EVP_PKEY_free)
 {
     setupUi();
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
+    connect(m_networkManager, &NetworkManager::broadcastMessageReceived, this, &MainWindow::onBroadcastMessageReceived);
     connect(chatListWidget, &QListWidget::currentItemChanged, this, &MainWindow::onChatSelectionChanged);
 }
 
@@ -72,7 +72,6 @@ void MainWindow::setUserLogin(const QString &login, const QString &password)
     QString privateKeyPem = m_db->getEncryptedPrivateKey(m_userLogin);
     if (privateKeyPem.isEmpty()) {
         QMessageBox::critical(this, "Критическая ошибка", "Не удалось загрузить приватный ключ из базы данных.");
-        // В реальном приложении здесь лучше закрыть окно
         return;
     }
 
@@ -80,13 +79,10 @@ void MainWindow::setUserLogin(const QString &login, const QString &password)
 
     if (!m_privateKey) {
         QMessageBox::critical(this, "Критическая ошибка", "Не удалось расшифровать приватный ключ. Вероятно, введен неверный пароль или ключ поврежден.");
-        // В реальном приложении здесь лучше закрыть окно
         return;
     }
     qDebug() << "Private key successfully decrypted and loaded for" << m_userLogin;
     // ------------------------------------------
-
-    // Передаем наш публичный ключ в NetworkManager
     m_networkManager = new NetworkManager(m_userLogin, m_db->getPublicKey(m_userLogin), this);
 
     connect(m_networkManager, &NetworkManager::userListUpdated, this, &MainWindow::updateUserList);
@@ -102,7 +98,15 @@ void MainWindow::onSendButtonClicked()
     if (!currentItem) return;
 
     QString receiverLogin = currentItem->text();
-    if (receiverLogin == "Общий чат" || receiverLogin == m_userLogin) return;
+
+    if (receiverLogin == "Общий чат") {
+        m_networkManager->sendBroadcastMessage(messageText);
+        messageHistoryView->append(m_userLogin + ": " + messageText);
+        messageInput->clear();
+        messageInput->setFocus();
+        return;
+    }
+    if (receiverLogin == m_userLogin) return;
 
     // --- ШАГ 1: Получаем публичный ключ получателя ---
     QString publicKeyPem = m_networkManager->getPublicKeyForUser(receiverLogin);
@@ -156,6 +160,17 @@ void MainWindow::onMessageReceived(const QString &senderLogin, const QByteArray 
     } else {
         // В будущем здесь можно добавить уведомление о новом сообщении
         qDebug() << "Received a new message from" << senderLogin << "but chat is not active.";
+    }
+}
+
+void MainWindow::onBroadcastMessageReceived(const QString &senderLogin, const QString &message)
+{
+    // Отображаем сообщение, только если сейчас открыт "Общий чат"
+    if (chatListWidget->currentItem() && chatListWidget->currentItem()->text() == "Общий чат") {
+        messageHistoryView->append(senderLogin + ": " + message);
+    } else {
+        // В будущем здесь можно добавить уведомление о новом сообщении в общем чате
+        qDebug() << "Received a new broadcast message, but 'Общий чат' is not active.";
     }
 }
 

@@ -11,6 +11,7 @@
 NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& publicKey, QObject *parent)
     : QObject(parent), m_currentUserLogin(currentUserLogin), m_publicKey(publicKey)
 {
+    // --- UDP Setup ---
     udpSocket = new QUdpSocket(this);
     if (!udpSocket->bind(QHostAddress::AnyIPv4, broadcastPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
         qWarning() << "UDP Socket could not bind:" << udpSocket->errorString();
@@ -24,6 +25,7 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& p
     broadcastTimer->start(5000);
     sendBroadcast();
 
+    // --- TCP Setup ---
     tcpServer = new QTcpServer(this);
     if (!tcpServer->listen(QHostAddress::Any, tcpPort)) {
         qWarning() << "TCP Server could not start on port" << tcpPort;
@@ -35,62 +37,14 @@ NetworkManager::NetworkManager(const QString &currentUserLogin, const QString& p
     qDebug() << "NetworkManager initialized for user" << m_currentUserLogin;
 }
 
-void NetworkManager::sendMessage(const QString &receiverLogin, const QByteArray &encryptedMessage)
+
+// --- Приватная функция для рассылки UDP ---
+void NetworkManager::sendBroadcastDatagram(const QByteArray &datagram)
 {
-    if (!m_discoveredUsers.contains(receiverLogin)) {
-        qWarning() << "Cannot send message: user" << receiverLogin << "not found.";
-        return;
-    }
+    // Пробуем отправить на общий broadcast-адрес
+    udpSocket->writeDatagram(datagram, QHostAddress::Broadcast, broadcastPort);
 
-    QTcpSocket *socket = new QTcpSocket(this);
-    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
-
-    QHostAddress receiverAddress = m_discoveredUsers.value(receiverLogin);
-    socket->connectToHost(receiverAddress, tcpPort);
-
-    if (socket->waitForConnected(3000)) {
-        // Формируем пакет: "логин_отправителя:зашифрованные_данные"
-        QByteArray data = m_currentUserLogin.toUtf8() + ":" + encryptedMessage;
-        socket->write(data);
-        socket->flush();
-        socket->waitForBytesWritten(1000);
-        socket->disconnectFromHost();
-    } else {
-        qWarning() << "Could not connect to" << receiverLogin << ":" << socket->errorString();
-    }
-}
-
-QString NetworkManager::getPublicKeyForUser(const QString &login)
-{
-    return m_userKeys.value(login, QString());
-}
-
-void NetworkManager::onNewTcpConnection()
-{
-    QTcpSocket *clientSocket = tcpServer->nextPendingConnection();
-    if (!clientSocket) return;
-
-    if (clientSocket->waitForReadyRead(1000)) {
-        QByteArray rawData = clientSocket->readAll();
-
-        int separatorIndex = rawData.indexOf(':');
-        if (separatorIndex != -1) {
-            QString senderLogin = QString::fromUtf8(rawData.left(separatorIndex));
-            // Все, что после первого ':', - это зашифрованный QByteArray
-            QByteArray encryptedMessage = rawData.mid(separatorIndex + 1);
-            emit messageReceived(senderLogin, encryptedMessage);
-        }
-    }
-
-    clientSocket->disconnectFromHost();
-    connect(clientSocket, &QTcpSocket::disconnected, clientSocket, &QTcpSocket::deleteLater);
-}
-
-void NetworkManager::sendBroadcast()
-{
-    QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8() + ":" + m_publicKey.toUtf8();
-    qDebug() << "Attempting to send broadcast to all interfaces";
-
+    // И дополнительно рассылаем по всем активным интерфейсам (надежный метод)
     for (const QNetworkInterface &interface : QNetworkInterface::allInterfaces()) {
         if ((interface.flags() & QNetworkInterface::IsUp) && (interface.flags() & QNetworkInterface::CanBroadcast)) {
             for (const QNetworkAddressEntry &entry : interface.addressEntries()) {
@@ -100,6 +54,69 @@ void NetworkManager::sendBroadcast()
             }
         }
     }
+}
+
+
+// --- Публичные методы ---
+
+void NetworkManager::sendMessage(const QString &receiverLogin, const QByteArray &encryptedMessage)
+{
+    if (!m_discoveredUsers.contains(receiverLogin)) {
+        qWarning() << "Cannot send private message: user" << receiverLogin << "not found.";
+        return;
+    }
+    QTcpSocket *socket = new QTcpSocket(this);
+    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
+    QHostAddress receiverAddress = m_discoveredUsers.value(receiverLogin);
+    socket->connectToHost(receiverAddress, tcpPort);
+
+    if (socket->waitForConnected(3000)) {
+        QByteArray data = m_currentUserLogin.toUtf8() + ":" + encryptedMessage;
+        socket->write(data);
+        socket->flush();
+        socket->waitForBytesWritten(1000);
+        socket->disconnectFromHost();
+    } else {
+        qWarning() << "Could not connect to" << receiverLogin << "for private message:" << socket->errorString();
+    }
+}
+
+void NetworkManager::sendBroadcastMessage(const QString &message)
+{
+    QByteArray datagram = "MSG_ALL:" + m_currentUserLogin.toUtf8() + ":" + message.toUtf8();
+    sendBroadcastDatagram(datagram);
+}
+
+QString NetworkManager::getPublicKeyForUser(const QString &login)
+{
+    return m_userKeys.value(login, QString());
+}
+
+
+// --- Слоты ---
+
+void NetworkManager::onNewTcpConnection()
+{
+    QTcpSocket *clientSocket = tcpServer->nextPendingConnection();
+    if (!clientSocket) return;
+
+    if (clientSocket->waitForReadyRead(1000)) {
+        QByteArray rawData = clientSocket->readAll();
+        int separatorIndex = rawData.indexOf(':');
+        if (separatorIndex != -1) {
+            QString senderLogin = QString::fromUtf8(rawData.left(separatorIndex));
+            QByteArray encryptedMessage = rawData.mid(separatorIndex + 1);
+            emit messageReceived(senderLogin, encryptedMessage);
+        }
+    }
+    clientSocket->disconnectFromHost();
+    connect(clientSocket, &QTcpSocket::disconnected, clientSocket, &QTcpSocket::deleteLater);
+}
+
+void NetworkManager::sendBroadcast()
+{
+    QByteArray datagram = "DISCOVER:" + m_currentUserLogin.toUtf8() + ":" + m_publicKey.toUtf8();
+    sendBroadcastDatagram(datagram);
 }
 
 void NetworkManager::processPendingDatagrams()
@@ -132,6 +149,17 @@ void NetworkManager::processPendingDatagrams()
                 m_userKeys[discoveredUserLogin] = discoveredUserKey;
                 emit userListUpdated(m_discoveredUsers.keys());
             }
+        }
+        else if (data.startsWith("MSG_ALL:"))
+        {
+            QList<QByteArray> parts = data.mid(8).split(':');
+            if (parts.size() < 2) continue;
+
+            QString senderLogin = QString::fromUtf8(parts.takeFirst());
+            if (senderLogin == m_currentUserLogin) continue;
+
+            QString message = QString::fromUtf8(parts.join(':'));
+            emit broadcastMessageReceived(senderLogin, message);
         }
     }
 }
